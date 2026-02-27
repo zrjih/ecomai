@@ -3,31 +3,38 @@ const { authRequired, requireRoles, resolveTenant } = require('../middleware/aut
 const { requireTenantContext } = require('../middleware/tenant');
 const { asyncHandler } = require('../middleware/async-handler');
 const paymentService = require('../services/payments');
+const shopRepo = require('../repositories/shops');
 const config = require('../config');
 
 const router = express.Router();
 
 // --- SSLCommerz callback routes (no auth needed, called by gateway) ---
 
+// Helper: resolve shop slug from UUID stored in value_b
+async function resolveShopSlug(shopId) {
+  const shop = await shopRepo.findById(shopId);
+  return shop?.slug || shopId; // fallback to raw id if lookup fails
+}
+
 router.post('/sslcommerz/success', asyncHandler(async (req, res) => {
   const result = await paymentService.handleSSLCommerzCallback(req.body);
-  const shopId = req.body.value_b;
+  const slug = await resolveShopSlug(req.body.value_b);
   if (result.valid) {
-    return res.redirect(`${config.appUrl}/store/${shopId}/checkout/success?tran_id=${req.body.tran_id}`);
+    return res.redirect(`${config.appUrl}/store/${slug}/checkout/success?tran_id=${req.body.tran_id}`);
   }
-  return res.redirect(`${config.appUrl}/store/${shopId}/checkout/fail?tran_id=${req.body.tran_id}`);
+  return res.redirect(`${config.appUrl}/store/${slug}/checkout/fail?tran_id=${req.body.tran_id}`);
 }));
 
 router.post('/sslcommerz/fail', asyncHandler(async (req, res) => {
   await paymentService.handleSSLCommerzCallback(req.body);
-  const shopId = req.body.value_b;
-  return res.redirect(`${config.appUrl}/store/${shopId}/checkout/fail?tran_id=${req.body.tran_id}`);
+  const slug = await resolveShopSlug(req.body.value_b);
+  return res.redirect(`${config.appUrl}/store/${slug}/checkout/fail?tran_id=${req.body.tran_id}`);
 }));
 
 router.post('/sslcommerz/cancel', asyncHandler(async (req, res) => {
   await paymentService.handleSSLCommerzCallback(req.body);
-  const shopId = req.body.value_b;
-  return res.redirect(`${config.appUrl}/store/${shopId}/checkout/cancel?tran_id=${req.body.tran_id}`);
+  const slug = await resolveShopSlug(req.body.value_b);
+  return res.redirect(`${config.appUrl}/store/${slug}/checkout/cancel?tran_id=${req.body.tran_id}`);
 }));
 
 router.post('/sslcommerz/ipn', asyncHandler(async (req, res) => {
