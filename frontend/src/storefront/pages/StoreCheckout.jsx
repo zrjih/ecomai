@@ -51,9 +51,9 @@ export default function StoreCheckout() {
       });
 
       // SSLCommerz flow: redirect to payment gateway
-      if (result.gatewayUrl) {
+      if (result.payment?.gatewayUrl) {
         clearCart();
-        window.location.href = result.gatewayUrl;
+        window.location.href = result.payment.gatewayUrl;
         return;
       }
 

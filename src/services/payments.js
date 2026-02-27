@@ -1,9 +1,31 @@
-const SSLCommerzPayment = require('sslcommerz-lts');
+// Direct fetch-based SSLCommerz integration (Bun-compatible, no form-data dependency)
 const config = require('../config');
 const orderRepo = require('../repositories/orders');
 const paymentRepo = require('../repositories/payments');
 const db = require('../db');
 const { DomainError } = require('../errors/domain-error');
+
+const SSLCZ_BASE = config.sslcommerzIsLive
+  ? 'https://securepay.sslcommerz.com'
+  : 'https://sandbox.sslcommerz.com';
+
+/** POST form-encoded data to SSLCommerz using native fetch */
+async function sslczPost(endpoint, data) {
+  const body = new URLSearchParams(data).toString();
+  const res = await fetch(`${SSLCZ_BASE}${endpoint}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+  return res.json();
+}
+
+/** GET with query params from SSLCommerz */
+async function sslczGet(endpoint, params) {
+  const qs = new URLSearchParams(params).toString();
+  const res = await fetch(`${SSLCZ_BASE}${endpoint}?${qs}`);
+  return res.json();
+}
 
 async function ensureOrder(shopId, orderId) {
   const order = await orderRepo.findById(orderId);
@@ -33,14 +55,10 @@ async function initiatePayment({ shopId, orderId, customerName, customerEmail, c
     gateway_tran_id: tranId,
   });
 
-  const sslcz = new SSLCommerzPayment(
-    config.sslcommerzStoreId,
-    config.sslcommerzStorePasswd,
-    config.sslcommerzIsLive
-  );
-
   const sslData = {
-    total_amount: Number(order.total_amount),
+    store_id: config.sslcommerzStoreId,
+    store_passwd: config.sslcommerzStorePasswd,
+    total_amount: String(Number(order.total_amount)),
     currency: 'BDT',
     tran_id: tranId,
     success_url: `${config.apiUrl}/v1/payments/sslcommerz/success`,
@@ -57,11 +75,11 @@ async function initiatePayment({ shopId, orderId, customerName, customerEmail, c
     cus_add1: shippingAddress || 'Dhaka',
     cus_city: 'Dhaka',
     cus_country: 'Bangladesh',
-    value_a: payment.id,  // our payment ID
-    value_b: shopId,       // shop ID for routing
+    value_a: payment.id,
+    value_b: shopId,
   };
 
-  const response = await sslcz.init(sslData);
+  const response = await sslczPost('/gwprocess/v4/api.php', sslData);
 
   if (!response?.GatewayPageURL) {
     throw new DomainError('PAYMENT_INIT_FAILED', 'Failed to initialize payment gateway', 502);
@@ -84,10 +102,15 @@ async function handleSSLCommerzCallback(body) {
   if (payment.status === 'completed') return { valid: true, payment, alreadyProcessed: true };
 
   if (status === 'VALID' || status === 'VALIDATED') {
-    // Optionally validate with SSLCommerz
-    const sslcz = new SSLCommerzPayment(config.sslcommerzStoreId, config.sslcommerzStorePasswd, config.sslcommerzIsLive);
+    // Validate with SSLCommerz
     try {
-      const validation = await sslcz.validate({ val_id });
+      const validation = await sslczGet('/validator/api/validationserverAPI.php', {
+        val_id,
+        store_id: config.sslcommerzStoreId,
+        store_passwd: config.sslcommerzStorePasswd,
+        v: '1',
+        format: 'json',
+      });
       if (validation.status !== 'VALID' && validation.status !== 'VALIDATED') {
         await paymentRepo.updatePayment(payment.id, { status: 'failed', gateway_response: validation });
         return { valid: false, payment };
