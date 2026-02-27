@@ -1,6 +1,9 @@
 const express = require('express');
 const { authRequired, requireRoles, resolveTenant } = require('../middleware/auth');
 const { requireTenantContext } = require('../middleware/tenant');
+const orderService = require('../services/orders');
+const deliveryService = require('../services/delivery-requests');
+const { DomainError } = require('../errors/domain-error');
 const { createOrder, listOrdersByShop } = require('../services/orders');
 
 const router = express.Router();

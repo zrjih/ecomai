@@ -12,13 +12,15 @@ function calculateTotals(items) {
 }
 
 function createOrder({ shopId, customer_email, items }) {
+  if (!customer_email || !Array.isArray(items) || items.length === 0) {
+    throw new DomainError('VALIDATION_ERROR', 'customer_email and non-empty items are required', 400);
+  }
+
   const resolvedItems = items.map((item) => {
-    const product = products.find((p) => p.id === item.product_id && p.shop_id === shopId);
+    const product = productRepo.findByIdAndShop(item.product_id, shopId);
 
     if (!product) {
-      const err = new Error(`Unknown product for tenant scope: ${item.product_id}`);
-      err.code = 'PRODUCT_NOT_FOUND';
-      throw err;
+      throw new DomainError('PRODUCT_NOT_FOUND', `Unknown product for tenant scope: ${item.product_id}`, 400);
     }
 
     const quantity = Number(item.quantity || 1);
