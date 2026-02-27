@@ -5,7 +5,7 @@ import { storeApi } from '../../api-public';
 import { resolveTokens } from '../templates';
 
 export default function StoreProducts() {
-  const { shopSlug, theme, tokens } = useStore();
+  const { shopSlug, theme, tokens, formatPrice } = useStore();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -141,7 +141,7 @@ export default function StoreProducts() {
                   )}
                   <div className="mt-auto">
                     <p className="text-lg font-bold" style={{ color: t.primary }}>
-                      ৳{Number(product.base_price).toFixed(2)}
+                      {formatPrice(product.base_price)}
                     </p>
                   </div>
                 </div>

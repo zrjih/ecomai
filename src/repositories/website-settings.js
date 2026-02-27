@@ -15,21 +15,26 @@ async function createDefault(shopId) {
     customCss: '',
     customJs: '',
     seoDefaults: { title: '', description: '' },
+    currencyConfig: { symbol: '৳', code: 'BDT', position: 'before', decimals: 2 },
   };
   const res = await db.query(
-    `INSERT INTO website_settings (shop_id, template, theme, header, footer, homepage, custom_css, custom_js, seo_defaults)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+    `INSERT INTO website_settings (shop_id, template, theme, header, footer, homepage, custom_css, custom_js, seo_defaults, currency_config)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
     [shopId, defaults.template, JSON.stringify(defaults.theme), JSON.stringify(defaults.header),
      JSON.stringify(defaults.footer), JSON.stringify(defaults.homepage),
-     defaults.customCss, defaults.customJs, JSON.stringify(defaults.seoDefaults)]
+     defaults.customCss, defaults.customJs, JSON.stringify(defaults.seoDefaults),
+     JSON.stringify(defaults.currencyConfig)]
   );
   return res.rows[0];
 }
 
 async function updateForShop(shopId, patch) {
   const allowed = ['template', 'theme', 'header', 'footer', 'homepage', 'custom_css', 'custom_js', 'seo_defaults',
-                    'social_links', 'business_info', 'store_policies', 'announcement', 'trust_badges'];
-  const jsonCols = ['theme', 'header', 'footer', 'homepage', 'seo_defaults', 'social_links', 'business_info', 'store_policies', 'announcement', 'trust_badges'];
+                    'social_links', 'business_info', 'store_policies', 'announcement', 'trust_badges',
+                    'currency_config', 'store_config', 'analytics', 'popup_config', 'countdown'];
+  const jsonCols = ['theme', 'header', 'footer', 'homepage', 'seo_defaults', 'social_links', 'business_info',
+                    'store_policies', 'announcement', 'trust_badges',
+                    'currency_config', 'store_config', 'analytics', 'popup_config', 'countdown'];
   const sets = [];
   const params = [];
   let idx = 1;

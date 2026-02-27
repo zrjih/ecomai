@@ -43,9 +43,24 @@ export function StoreProvider({ shopSlug, children }) {
   const storePolicies = siteSettings.store_policies || {};   // about_us, return_policy, privacy_policy, terms
   const trustBadges = siteSettings.trust_badges || [];       // [{ icon, title, text }]
 
+  // Phase 2 settings
+  const currencyConfig = siteSettings.currency_config || { symbol: '৳', code: 'BDT', position: 'before', decimals: 2 };
+  const storeConfig = siteSettings.store_config || {};        // maintenance, display, checkout
+  const analyticsConfig = siteSettings.analytics || {};       // ga4_id, fb_pixel_id
+  const popupConfig = siteSettings.popup_config || {};        // welcome popup
+  const countdown = siteSettings.countdown || {};             // sale countdown
+
+  // Currency formatting helper
+  const formatPrice = (amount) => {
+    const num = Number(amount) || 0;
+    const { symbol = '৳', position = 'before', decimals = 2 } = currencyConfig;
+    const formatted = num.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    return position === 'after' ? `${formatted}${symbol}` : `${symbol}${formatted}`;
+  };
+
   return (
     <StoreContext.Provider
-      value={{ shop, settings: siteSettings, theme, tokens, nav, footer, homepage, customCss, customJs, seoDefaults, socialLinks, businessInfo, announcement, storePolicies, trustBadges, loading, error, shopSlug }}
+      value={{ shop, settings: siteSettings, theme, tokens, nav, footer, homepage, customCss, customJs, seoDefaults, socialLinks, businessInfo, announcement, storePolicies, trustBadges, currencyConfig, storeConfig, analyticsConfig, popupConfig, countdown, formatPrice, loading, error, shopSlug }}
     >
       {children}
     </StoreContext.Provider>

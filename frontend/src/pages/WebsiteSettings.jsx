@@ -1,83 +1,301 @@
 import { useState, useEffect, useRef } from 'react';
-import { websiteSettings, shops } from '../api';
+import { websiteSettings, shops, products as productsApi } from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import { templates, resolveTokens } from '../storefront/templates';
 import { PageHeader, Card, Button, FormField, Input, Textarea } from '../components/UI';
 
 const TEMPLATE_LIST = Object.values(templates);
 
+/* ── Reusable Image Uploader ── */
+function ImageUploader({ label, value, onChange, hint }) {
+  const ref = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const result = await websiteSettings.uploadImage(file);
+      onChange(result.url);
+    } catch { }
+    setUploading(false);
+  };
+  return (
+    <div>
+      {label && <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>}
+      <div className="flex items-center gap-4">
+        <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 flex-shrink-0">
+          {value ? <img src={value} alt="" className="w-full h-full object-contain" /> : <span className="text-2xl text-gray-300">📷</span>}
+        </div>
+        <div className="flex-1">
+          <input ref={ref} type="file" accept="image/*" onChange={handleFile} className="hidden" />
+          <Button variant="secondary" size="sm" onClick={() => ref.current?.click()} disabled={uploading}>
+            {uploading ? 'Uploading...' : value ? 'Change' : 'Upload'}
+          </Button>
+          {value && <button onClick={() => onChange('')} className="ml-2 text-xs text-red-500 hover:text-red-700">Remove</button>}
+          {hint && <p className="text-[11px] text-gray-400 mt-1">{hint}</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Toggle Switch ── */
+function Toggle({ checked, onChange, label }) {
+  return (
+    <label className="flex items-center gap-3 cursor-pointer">
+      <div className="relative">
+        <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} className="sr-only peer" />
+        <div className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600" />
+      </div>
+      {label && <span className="text-sm text-gray-700">{label}</span>}
+    </label>
+  );
+}
+
+/* ── Nav Item Editor ── */
+function NavItemEditor({ items, onChange }) {
+  const add = () => onChange([...items, { label: '', url: '' }]);
+  const remove = (i) => onChange(items.filter((_, idx) => idx !== i));
+  const update = (i, field, val) => { const n = [...items]; n[i] = { ...n[i], [field]: val }; onChange(n); };
+  return (
+    <div className="space-y-2">
+      {items.map((item, i) => (
+        <div key={i} className="flex gap-2 items-center">
+          <Input value={item.label} onChange={e => update(i, 'label', e.target.value)} placeholder="Label" className="!flex-1" />
+          <Input value={item.url || item.to || ''} onChange={e => update(i, 'url', e.target.value)} placeholder="/products or https://..." className="!flex-1" />
+          <button onClick={() => remove(i)} className="text-gray-400 hover:text-red-500 text-lg px-1">✕</button>
+        </div>
+      ))}
+      {items.length < 8 && (
+        <button onClick={add} className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">+ Add Link</button>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MAIN COMPONENT
+   ═══════════════════════════════════════════════════════════════ */
 export default function WebsiteSettings() {
   const { user } = useAuth();
   const [settings, setSettings] = useState(null);
   const [shop, setShop] = useState(null);
+  const [allProducts, setAllProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [activeTab, setActiveTab] = useState('theme');
+  const [activeTab, setActiveTab] = useState('branding');
 
   /* ── Form state aligned with backend DB columns ── */
   const [selectedTemplate, setSelectedTemplate] = useState('classic');
   const [tokenOverrides, setTokenOverrides] = useState({});
-  const [headerConfig, setHeaderConfig] = useState('{}');
-  const [footerConfig, setFooterConfig] = useState('{}');
   const [customCss, setCustomCss] = useState('');
   const [customJs, setCustomJs] = useState('');
   const [seoTitle, setSeoTitle] = useState('');
   const [seoDescription, setSeoDescription] = useState('');
+
+  /* ── Branding ── */
+  const [logoUrl, setLogoUrl] = useState('');
+  const [faviconUrl, setFaviconUrl] = useState('');
+  const [ogImageUrl, setOgImageUrl] = useState('');
+  const [logoHeight, setLogoHeight] = useState('40');
+  const [showShopName, setShowShopName] = useState(true);
+  const [headerLayout, setHeaderLayout] = useState('left'); // left, center
+
+  /* ── Homepage ── */
   const [heroHeadline, setHeroHeadline] = useState('');
   const [heroSubtitle, setHeroSubtitle] = useState('');
   const [heroCta, setHeroCta] = useState('');
+  const [heroImageUrl, setHeroImageUrl] = useState('');
+  const [heroOverlayOpacity, setHeroOverlayOpacity] = useState(50);
+  const [heroOverlayColor, setHeroOverlayColor] = useState('#000000');
   const [featuredTitle, setFeaturedTitle] = useState('');
+  const [featuredSubtitle, setFeaturedSubtitle] = useState('');
+  const [featuredProductIds, setFeaturedProductIds] = useState([]);
+  const [ctaHeadline, setCtaHeadline] = useState('');
+  const [ctaSubtitle, setCtaSubtitle] = useState('');
 
-  /* ── New expanded settings state ── */
+  /* ── Navigation ── */
+  const [navItems, setNavItems] = useState([]);
+
+  /* ── Footer ── */
+  const [footerTagline, setFooterTagline] = useState('');
+  const [footerCopyright, setFooterCopyright] = useState('');
+  const [footerLinks, setFooterLinks] = useState([]);
+  const [showPaymentIcons, setShowPaymentIcons] = useState(true);
+
+  /* ── Announcement ── */
+  const [announcement, setAnnouncement] = useState({ enabled: false, text: '', link: '', bg_color: '#4f46e5', text_color: '#ffffff' });
+
+  /* ── Social & Business ── */
   const [socialLinks, setSocialLinks] = useState({ facebook: '', instagram: '', twitter: '', tiktok: '', youtube: '', whatsapp: '' });
   const [businessInfo, setBusinessInfo] = useState({ phone: '', email: '', address: '', whatsapp: '', hours: '' });
-  const [announcement, setAnnouncement] = useState({ enabled: false, text: '', link: '', bg_color: '#4f46e5', text_color: '#ffffff' });
+
+  /* ── Store Settings ── */
+  const [currencySymbol, setCurrencySymbol] = useState('৳');
+  const [currencyCode, setCurrencyCode] = useState('BDT');
+  const [currencyPosition, setCurrencyPosition] = useState('before');
+  const [currencyDecimals, setCurrencyDecimals] = useState(2);
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [maintenanceMessage, setMaintenanceMessage] = useState('');
+  const [productsPerPage, setProductsPerPage] = useState(12);
+  const [gridColumns, setGridColumns] = useState(4);
+  const [defaultSort, setDefaultSort] = useState('newest');
+  const [showOutOfStock, setShowOutOfStock] = useState(true);
+  const [minOrderAmount, setMinOrderAmount] = useState('');
+  const [guestCheckout, setGuestCheckout] = useState(true);
+  const [cookieConsent, setCookieConsent] = useState(false);
+
+  /* ── Policies ── */
   const [storePolicies, setStorePolicies] = useState({ return_policy: '', privacy_policy: '', terms: '', about_us: '' });
+
+  /* ── Trust Badges ── */
   const [trustBadges, setTrustBadges] = useState([
     { icon: '🔒', title: 'Secure Checkout', text: '100% secure payment' },
     { icon: '🚀', title: 'Fast Shipping', text: 'Free delivery on orders over $50' },
     { icon: '💬', title: '24/7 Support', text: 'Dedicated customer support' },
   ]);
 
+  /* ── Analytics ── */
+  const [ga4Id, setGa4Id] = useState('');
+  const [fbPixelId, setFbPixelId] = useState('');
+  const [gtmId, setGtmId] = useState('');
+
+  /* ── Popup Config ── */
+  const [popupEnabled, setPopupEnabled] = useState(false);
+  const [popupHeadline, setPopupHeadline] = useState('');
+  const [popupBody, setPopupBody] = useState('');
+  const [popupCtaText, setPopupCtaText] = useState('');
+  const [popupCtaLink, setPopupCtaLink] = useState('');
+  const [popupDiscountCode, setPopupDiscountCode] = useState('');
+  const [popupDelay, setPopupDelay] = useState(5);
+  const [popupShowOnce, setPopupShowOnce] = useState(true);
+
+  /* ── Countdown ── */
+  const [countdownEnabled, setCountdownEnabled] = useState(false);
+  const [countdownEndDate, setCountdownEndDate] = useState('');
+  const [countdownHeadline, setCountdownHeadline] = useState('');
+  const [countdownBg, setCountdownBg] = useState('#ef4444');
+  const [countdownTextColor, setCountdownTextColor] = useState('#ffffff');
+
   const iframeRef = useRef(null);
 
+  /* ═══════ LOAD DATA ═══════ */
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
-        const data = await websiteSettings.get();
+        const [data, prods] = await Promise.all([
+          websiteSettings.get(),
+          productsApi.list().catch(() => ({ items: [] })),
+        ]);
         setSettings(data);
+        setAllProducts(prods.items || []);
 
-        /* Map DB columns → local form state */
+        // Template & tokens
         setSelectedTemplate(data.template || 'classic');
         setTokenOverrides(data.theme || {});
-        setHeaderConfig(JSON.stringify(data.header || {}, null, 2));
-        setFooterConfig(JSON.stringify(data.footer || {}, null, 2));
         setCustomCss(data.custom_css || '');
         setCustomJs(data.custom_js || '');
 
+        // SEO
         const seo = data.seo_defaults || {};
         setSeoTitle(seo.title || '');
         setSeoDescription(seo.description || '');
+        setOgImageUrl(seo.og_image_url || '');
+        setFaviconUrl(seo.favicon_url || '');
 
+        // Branding from header
+        const hdr = data.header || {};
+        setLogoUrl(hdr.logo_url || '');
+        setLogoHeight(hdr.logo_height || '40');
+        setShowShopName(hdr.show_name !== false);
+        setHeaderLayout(hdr.layout || 'left');
+        setNavItems(hdr.nav || []);
+
+        // Footer
+        const ftr = data.footer || {};
+        setFooterTagline(ftr.tagline || '');
+        setFooterCopyright(ftr.copyright || '');
+        setFooterLinks(ftr.links || []);
+        setShowPaymentIcons(ftr.show_payment_icons !== false);
+
+        // Homepage
         const hp = data.homepage || {};
         setHeroHeadline(hp?.hero?.headline || hp?.hero?.title || '');
         setHeroSubtitle(hp?.hero?.subtitle || '');
         setHeroCta(hp?.hero?.cta || '');
+        setHeroImageUrl(hp?.hero?.image_url || '');
+        setHeroOverlayOpacity(hp?.hero?.overlay_opacity ?? 50);
+        setHeroOverlayColor(hp?.hero?.overlay_color || '#000000');
         setFeaturedTitle(hp?.featured_title || '');
+        setFeaturedSubtitle(hp?.featured_subtitle || '');
+        setFeaturedProductIds(hp?.featured_product_ids || []);
+        setCtaHeadline(hp?.cta?.headline || '');
+        setCtaSubtitle(hp?.cta?.subtitle || '');
 
-        /* Load new expanded settings */
+        // Announcement
+        const ann = data.announcement || {};
+        setAnnouncement({ enabled: !!ann.enabled, text: ann.text || '', link: ann.link || '', bg_color: ann.bg_color || '#4f46e5', text_color: ann.text_color || '#ffffff' });
+
+        // Social & Business
         const sl = data.social_links || {};
         setSocialLinks({ facebook: sl.facebook || '', instagram: sl.instagram || '', twitter: sl.twitter || '', tiktok: sl.tiktok || '', youtube: sl.youtube || '', whatsapp: sl.whatsapp || '' });
         const bi = data.business_info || {};
         setBusinessInfo({ phone: bi.phone || '', email: bi.email || '', address: bi.address || '', whatsapp: bi.whatsapp || '', hours: bi.hours || '' });
-        const ann = data.announcement || {};
-        setAnnouncement({ enabled: !!ann.enabled, text: ann.text || '', link: ann.link || '', bg_color: ann.bg_color || '#4f46e5', text_color: ann.text_color || '#ffffff' });
+
+        // Policies
         const sp = data.store_policies || {};
         setStorePolicies({ return_policy: sp.return_policy || '', privacy_policy: sp.privacy_policy || '', terms: sp.terms || '', about_us: sp.about_us || '' });
-        if (data.trust_badges && Array.isArray(data.trust_badges) && data.trust_badges.length > 0) setTrustBadges(data.trust_badges);
+
+        // Trust badges
+        if (data.trust_badges?.length > 0) setTrustBadges(data.trust_badges);
+
+        // Currency
+        const cc = data.currency_config || {};
+        setCurrencySymbol(cc.symbol || '৳');
+        setCurrencyCode(cc.code || 'BDT');
+        setCurrencyPosition(cc.position || 'before');
+        setCurrencyDecimals(cc.decimals ?? 2);
+
+        // Store config
+        const sc = data.store_config || {};
+        setMaintenanceMode(!!sc.maintenance_mode);
+        setMaintenanceMessage(sc.maintenance_message || '');
+        setProductsPerPage(sc.products_per_page || 12);
+        setGridColumns(sc.grid_columns || 4);
+        setDefaultSort(sc.default_sort || 'newest');
+        setShowOutOfStock(sc.show_out_of_stock !== false);
+        setMinOrderAmount(sc.min_order_amount || '');
+        setGuestCheckout(sc.guest_checkout !== false);
+        setCookieConsent(!!sc.cookie_consent);
+
+        // Analytics
+        const an = data.analytics || {};
+        setGa4Id(an.ga4_id || '');
+        setFbPixelId(an.fb_pixel_id || '');
+        setGtmId(an.gtm_id || '');
+
+        // Popup
+        const pop = data.popup_config || {};
+        setPopupEnabled(!!pop.enabled);
+        setPopupHeadline(pop.headline || '');
+        setPopupBody(pop.body || '');
+        setPopupCtaText(pop.cta_text || '');
+        setPopupCtaLink(pop.cta_link || '');
+        setPopupDiscountCode(pop.discount_code || '');
+        setPopupDelay(pop.delay_seconds || 5);
+        setPopupShowOnce(pop.show_once !== false);
+
+        // Countdown
+        const cd = data.countdown || {};
+        setCountdownEnabled(!!cd.enabled);
+        setCountdownEndDate(cd.end_date || '');
+        setCountdownHeadline(cd.headline || '');
+        setCountdownBg(cd.bg_color || '#ef4444');
+        setCountdownTextColor(cd.text_color || '#ffffff');
 
         if (user.role !== 'super_admin') {
           const s = await shops.me();
@@ -89,52 +307,95 @@ export default function WebsiteSettings() {
     load();
   }, [user]);
 
+  /* ═══════ SAVE ═══════ */
   const handleSave = async () => {
-    setError('');
-    setSaving(true);
-    setSuccess('');
+    setError(''); setSaving(true); setSuccess('');
     try {
-      /* Build patch using EXACT backend DB column names */
       const patch = {
         template: selectedTemplate,
         theme: tokenOverrides,
-        header: JSON.parse(headerConfig || '{}'),
-        footer: JSON.parse(footerConfig || '{}'),
+        header: {
+          logo_url: logoUrl || undefined,
+          logo_height: logoHeight || '40',
+          show_name: showShopName,
+          layout: headerLayout,
+          nav: navItems,
+        },
+        footer: {
+          tagline: footerTagline || undefined,
+          copyright: footerCopyright || undefined,
+          links: footerLinks,
+          show_payment_icons: showPaymentIcons,
+        },
         homepage: {
           hero: {
             headline: heroHeadline || undefined,
             subtitle: heroSubtitle || undefined,
             cta: heroCta || undefined,
+            image_url: heroImageUrl || undefined,
+            overlay_opacity: heroOverlayOpacity,
+            overlay_color: heroOverlayColor,
           },
           featured_title: featuredTitle || undefined,
+          featured_subtitle: featuredSubtitle || undefined,
+          featured_product_ids: featuredProductIds.length > 0 ? featuredProductIds : undefined,
+          cta: {
+            headline: ctaHeadline || undefined,
+            subtitle: ctaSubtitle || undefined,
+          },
         },
         custom_css: customCss || null,
         custom_js: customJs || null,
-        seo_defaults: {
-          title: seoTitle || undefined,
-          description: seoDescription || undefined,
-        },
+        seo_defaults: { title: seoTitle || undefined, description: seoDescription || undefined, og_image_url: ogImageUrl || undefined, favicon_url: faviconUrl || undefined },
         social_links: socialLinks,
         business_info: businessInfo,
-        announcement: announcement,
+        announcement,
         store_policies: storePolicies,
         trust_badges: trustBadges,
+        currency_config: { symbol: currencySymbol, code: currencyCode, position: currencyPosition, decimals: Number(currencyDecimals) },
+        store_config: {
+          maintenance_mode: maintenanceMode,
+          maintenance_message: maintenanceMessage || undefined,
+          products_per_page: Number(productsPerPage),
+          grid_columns: Number(gridColumns),
+          default_sort: defaultSort,
+          show_out_of_stock: showOutOfStock,
+          min_order_amount: minOrderAmount ? Number(minOrderAmount) : undefined,
+          guest_checkout: guestCheckout,
+          cookie_consent: cookieConsent,
+        },
+        analytics: { ga4_id: ga4Id || undefined, fb_pixel_id: fbPixelId || undefined, gtm_id: gtmId || undefined },
+        popup_config: {
+          enabled: popupEnabled,
+          headline: popupHeadline || undefined,
+          body: popupBody || undefined,
+          cta_text: popupCtaText || undefined,
+          cta_link: popupCtaLink || undefined,
+          discount_code: popupDiscountCode || undefined,
+          delay_seconds: Number(popupDelay),
+          show_once: popupShowOnce,
+        },
+        countdown: {
+          enabled: countdownEnabled,
+          end_date: countdownEndDate || undefined,
+          headline: countdownHeadline || undefined,
+          bg_color: countdownBg,
+          text_color: countdownTextColor,
+        },
       };
       const updated = await websiteSettings.update(patch);
       setSettings(updated);
       setSuccess('Published! Your storefront is now updated.');
       setTimeout(() => setSuccess(''), 5000);
       if (iframeRef.current) iframeRef.current.src = iframeRef.current.src;
-    } catch (err) {
-      setError(err.message);
-    }
+    } catch (err) { setError(err.message); }
     setSaving(false);
   };
 
-  const updateToken = (key, value) => setTokenOverrides((prev) => ({ ...prev, [key]: value }));
-  const resetToken = (key) => setTokenOverrides((prev) => { const n = { ...prev }; delete n[key]; return n; });
+  const updateToken = (key, value) => setTokenOverrides(prev => ({ ...prev, [key]: value }));
+  const resetToken = (key) => setTokenOverrides(prev => { const n = { ...prev }; delete n[key]; return n; });
 
-  /* ── Loading skeleton ── */
+  /* ── Loading ── */
   if (loading) {
     return (
       <div className="space-y-6 animate-pulse">
@@ -156,15 +417,21 @@ export default function WebsiteSettings() {
   const overrideCount = Object.keys(tokenOverrides).length;
 
   const tabs = [
+    { id: 'branding', label: 'Branding', icon: '🎯' },
     { id: 'theme', label: 'Template', icon: '🎨' },
     { id: 'colors', label: 'Colors & Fonts', icon: '🖌️' },
     { id: 'homepage', label: 'Homepage', icon: '🏠' },
-    { id: 'announcement', label: 'Announcement', icon: '📢' },
+    { id: 'navigation', label: 'Navigation', icon: '🧭' },
+    { id: 'footer', label: 'Footer', icon: '📐' },
+    { id: 'announcement', label: 'Banners', icon: '📢' },
     { id: 'social', label: 'Social & Contact', icon: '🌐' },
+    { id: 'store', label: 'Store Config', icon: '⚙️' },
     { id: 'policies', label: 'Policies', icon: '📜' },
     { id: 'trust', label: 'Trust Badges', icon: '🛡️' },
     { id: 'seo', label: 'SEO', icon: '🔍' },
-    { id: 'advanced', label: 'Advanced', icon: '⚙️' },
+    { id: 'analytics', label: 'Analytics', icon: '📊' },
+    { id: 'popups', label: 'Popups & Timer', icon: '🎯' },
+    { id: 'advanced', label: 'Advanced', icon: '🔧' },
   ];
 
   const COLOR_TOKENS = [
@@ -176,9 +443,25 @@ export default function WebsiteSettings() {
     { key: 'footerBg', label: 'Footer Bg' }, { key: 'footerText', label: 'Footer Text' },
   ];
 
+  const CURRENCIES = [
+    { symbol: '৳', code: 'BDT', name: 'Bangladeshi Taka' },
+    { symbol: '$', code: 'USD', name: 'US Dollar' },
+    { symbol: '€', code: 'EUR', name: 'Euro' },
+    { symbol: '£', code: 'GBP', name: 'British Pound' },
+    { symbol: '₹', code: 'INR', name: 'Indian Rupee' },
+    { symbol: '¥', code: 'JPY', name: 'Japanese Yen' },
+    { symbol: 'RM', code: 'MYR', name: 'Malaysian Ringgit' },
+    { symbol: '₺', code: 'TRY', name: 'Turkish Lira' },
+    { symbol: 'R$', code: 'BRL', name: 'Brazilian Real' },
+    { symbol: '₱', code: 'PHP', name: 'Philippine Peso' },
+    { symbol: 'kr', code: 'SEK', name: 'Swedish Krona' },
+    { symbol: 'A$', code: 'AUD', name: 'Australian Dollar' },
+    { symbol: 'C$', code: 'CAD', name: 'Canadian Dollar' },
+  ];
+
   return (
     <div>
-      <PageHeader title="Website Settings" description="Customize your storefront appearance and content">
+      <PageHeader title="Website Settings" description="Customize your storefront appearance, branding, and features">
         <div className="flex items-center gap-2">
           {storeUrl && (
             <a href={storeUrl} target="_blank" rel="noopener noreferrer"
@@ -206,6 +489,12 @@ export default function WebsiteSettings() {
         </div>
       )}
 
+      {maintenanceMode && (
+        <div className="mb-4 p-4 bg-amber-50 border border-amber-300 text-amber-800 text-sm rounded-xl flex items-center gap-3">
+          <span className="text-lg">🚧</span><div className="flex-1 font-medium">Maintenance Mode is ON — your store is not visible to customers.</div>
+        </div>
+      )}
+
       {storeUrl && (
         <div className="mb-6 p-4 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl flex items-center gap-3">
           <span className="text-xl">🌐</span>
@@ -214,17 +503,15 @@ export default function WebsiteSettings() {
             <p className="text-xs text-indigo-600 font-mono truncate">{window.location.origin}{storeUrl}</p>
           </div>
           <button onClick={() => navigator.clipboard.writeText(window.location.origin + storeUrl)}
-            className="text-indigo-600 hover:text-indigo-700 text-xs font-medium px-3 py-1.5 bg-white border border-indigo-200 rounded-lg transition hover:shadow-sm">
-            Copy URL
-          </button>
+            className="text-indigo-600 hover:text-indigo-700 text-xs font-medium px-3 py-1.5 bg-white border border-indigo-200 rounded-lg transition hover:shadow-sm">Copy URL</button>
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 border-b border-gray-200 overflow-x-auto">
+      <div className="flex gap-1 mb-6 border-b border-gray-200 overflow-x-auto scrollbar-hide">
         {tabs.map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
+            className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-all whitespace-nowrap ${
               activeTab === tab.id ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}>
             <span>{tab.icon}</span>{tab.label}
@@ -235,7 +522,56 @@ export default function WebsiteSettings() {
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
         <div className="xl:col-span-3 space-y-6">
 
-          {/* ── Template Selection ── */}
+          {/* ════════════ BRANDING ════════════ */}
+          {activeTab === 'branding' && (
+            <>
+              <Card>
+                <div className="p-5">
+                  <h3 className="font-semibold text-gray-900 mb-1">Store Logo</h3>
+                  <p className="text-xs text-gray-500 mb-4">Appears in the header and browser tab. Recommended: 200×60px or larger.</p>
+                  <ImageUploader label="Logo Image" value={logoUrl} onChange={setLogoUrl} hint="PNG, SVG, or WebP with transparent background works best." />
+                  <div className="grid grid-cols-2 gap-3 mt-4">
+                    <FormField label="Logo Height (px)">
+                      <Input type="number" min="20" max="100" value={logoHeight} onChange={e => setLogoHeight(e.target.value)} />
+                    </FormField>
+                    <FormField label="Header Layout">
+                      <select className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" value={headerLayout} onChange={e => setHeaderLayout(e.target.value)}>
+                        <option value="left">Logo Left</option>
+                        <option value="center">Logo Centered</option>
+                      </select>
+                    </FormField>
+                  </div>
+                  <div className="mt-3">
+                    <Toggle checked={showShopName} onChange={setShowShopName} label="Show store name next to logo" />
+                  </div>
+                </div>
+              </Card>
+              <Card>
+                <div className="p-5">
+                  <h3 className="font-semibold text-gray-900 mb-1">Favicon & Social Image</h3>
+                  <p className="text-xs text-gray-500 mb-4">Browser tab icon and the image shown when shared on social media.</p>
+                  <div className="grid grid-cols-2 gap-6">
+                    <ImageUploader label="Favicon" value={faviconUrl} onChange={setFaviconUrl} hint="32×32px .ico, .png, or .svg" />
+                    <ImageUploader label="Social Share Image (OG)" value={ogImageUrl} onChange={setOgImageUrl} hint="1200×630px for best display" />
+                  </div>
+                </div>
+              </Card>
+              {/* Brand preview */}
+              <Card>
+                <div className="p-5">
+                  <h3 className="font-semibold text-gray-900 mb-3">Preview</h3>
+                  <div className="p-4 rounded-lg border border-gray-200" style={{ backgroundColor: resolved.headerBg }}>
+                    <div className="flex items-center gap-3">
+                      {logoUrl && <img src={logoUrl} alt="logo" style={{ height: `${logoHeight}px` }} className="object-contain" />}
+                      {showShopName && <span className="font-bold text-lg" style={{ color: resolved.primary }}>{shop?.name || 'Your Store'}</span>}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </>
+          )}
+
+          {/* ════════════ TEMPLATE ════════════ */}
           {activeTab === 'theme' && (
             <Card>
               <div className="p-5">
@@ -244,17 +580,12 @@ export default function WebsiteSettings() {
                     <h3 className="font-semibold text-gray-900">Choose a Template</h3>
                     <p className="text-sm text-gray-500 mt-0.5">Pick a style. Customize further in Colors & Fonts.</p>
                   </div>
-                  {overrideCount > 0 && (
-                    <span className="text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full font-medium">{overrideCount} override{overrideCount > 1 ? 's' : ''}</span>
-                  )}
+                  {overrideCount > 0 && <span className="text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full font-medium">{overrideCount} override{overrideCount > 1 ? 's' : ''}</span>}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {TEMPLATE_LIST.map(tmpl => (
-                    <button key={tmpl.id}
-                      onClick={() => { setSelectedTemplate(tmpl.id); setTokenOverrides({}); }}
-                      className={`text-left p-4 rounded-xl border-2 transition-all hover:shadow-md ${
-                        selectedTemplate === tmpl.id ? 'border-indigo-500 bg-indigo-50/60 shadow-sm ring-1 ring-indigo-200' : 'border-gray-200 hover:border-gray-300 bg-white'
-                      }`}>
+                    <button key={tmpl.id} onClick={() => { setSelectedTemplate(tmpl.id); setTokenOverrides({}); }}
+                      className={`text-left p-4 rounded-xl border-2 transition-all hover:shadow-md ${selectedTemplate === tmpl.id ? 'border-indigo-500 bg-indigo-50/60 shadow-sm ring-1 ring-indigo-200' : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
                       <div className="flex gap-1.5 mb-3">
                         {[tmpl.defaults.primary, tmpl.defaults.secondary, tmpl.defaults.accent, tmpl.defaults.bg, tmpl.defaults.surface].map((c, i) => (
                           <div key={i} className="w-7 h-7 rounded-lg border border-gray-200 shadow-sm" style={{ backgroundColor: c }} />
@@ -263,10 +594,7 @@ export default function WebsiteSettings() {
                       <h4 className="font-semibold text-sm text-gray-900">{tmpl.name}</h4>
                       <p className="text-xs text-gray-500 mt-1 line-clamp-2">{tmpl.description}</p>
                       {selectedTemplate === tmpl.id && (
-                        <span className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full">
-                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                          Active
-                        </span>
+                        <span className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full">✓ Active</span>
                       )}
                     </button>
                   ))}
@@ -275,7 +603,7 @@ export default function WebsiteSettings() {
             </Card>
           )}
 
-          {/* ── Colors & Typography ── */}
+          {/* ════════════ COLORS & FONTS ════════════ */}
           {activeTab === 'colors' && (
             <>
               <Card>
@@ -285,9 +613,7 @@ export default function WebsiteSettings() {
                       <h3 className="font-semibold text-gray-900">Color Palette</h3>
                       <p className="text-xs text-gray-500">Override any template color. Click Reset to revert.</p>
                     </div>
-                    {overrideCount > 0 && (
-                      <button onClick={() => setTokenOverrides({})} className="text-xs text-gray-500 hover:text-red-600 transition px-2 py-1 rounded hover:bg-red-50">Reset All</button>
-                    )}
+                    {overrideCount > 0 && <button onClick={() => setTokenOverrides({})} className="text-xs text-gray-500 hover:text-red-600 transition px-2 py-1 rounded hover:bg-red-50">Reset All</button>}
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {COLOR_TOKENS.map(({ key, label }) => (
@@ -298,9 +624,7 @@ export default function WebsiteSettings() {
                           <p className="text-xs font-medium text-gray-700">{label}</p>
                           <p className="text-[10px] text-gray-400 font-mono">{resolved[key]}</p>
                         </div>
-                        {tokenOverrides[key] && (
-                          <button onClick={() => resetToken(key)} className="opacity-0 group-hover:opacity-100 text-[10px] text-gray-400 hover:text-red-500 transition-all" title="Reset">↺</button>
-                        )}
+                        {tokenOverrides[key] && <button onClick={() => resetToken(key)} className="opacity-0 group-hover:opacity-100 text-[10px] text-gray-400 hover:text-red-500 transition-all" title="Reset">↺</button>}
                       </div>
                     ))}
                   </div>
@@ -309,11 +633,9 @@ export default function WebsiteSettings() {
               <Card>
                 <div className="p-5">
                   <h3 className="font-semibold text-gray-900 mb-1">Typography & Shapes</h3>
-                  <p className="text-xs text-gray-500 mb-4">All fields optional — leave blank to use template defaults.</p>
+                  <p className="text-xs text-gray-500 mb-4">Leave blank to use template defaults.</p>
                   <div className="space-y-3">
-                    <FormField label="Font Family">
-                      <Input value={tokenOverrides.fontFamily || ''} onChange={e => updateToken('fontFamily', e.target.value)} placeholder={currentDefaults.fontFamily} />
-                    </FormField>
+                    <FormField label="Font Family"><Input value={tokenOverrides.fontFamily || ''} onChange={e => updateToken('fontFamily', e.target.value)} placeholder={currentDefaults.fontFamily} /></FormField>
                     <div className="grid grid-cols-2 gap-3">
                       <FormField label="Border Radius"><Input value={tokenOverrides.radius || ''} onChange={e => updateToken('radius', e.target.value)} placeholder={currentDefaults.radius} /></FormField>
                       <FormField label="Button Radius"><Input value={tokenOverrides.buttonRadius || ''} onChange={e => updateToken('buttonRadius', e.target.value)} placeholder={currentDefaults.buttonRadius} /></FormField>
@@ -326,88 +648,193 @@ export default function WebsiteSettings() {
             </>
           )}
 
-          {/* ── Homepage Content ── */}
+          {/* ════════════ HOMEPAGE ════════════ */}
           {activeTab === 'homepage' && (
-            <Card>
-              <div className="p-5">
-                <h3 className="font-semibold text-gray-900 mb-1">Homepage Content</h3>
-                <p className="text-xs text-gray-500 mb-4">Customize hero and featured products section. Leave blank for default text.</p>
-                <div className="space-y-3">
-                  <FormField label="Hero Headline"><Input value={heroHeadline} onChange={e => setHeroHeadline(e.target.value)} placeholder={`Welcome to ${shop?.name || 'Your Store'}`} /></FormField>
-                  <FormField label="Hero Subtitle"><Input value={heroSubtitle} onChange={e => setHeroSubtitle(e.target.value)} placeholder="Discover our curated collection of premium products." /></FormField>
-                  <div className="grid grid-cols-2 gap-3">
-                    <FormField label="Call-to-Action"><Input value={heroCta} onChange={e => setHeroCta(e.target.value)} placeholder="Shop Now" /></FormField>
-                    <FormField label="Featured Section Title"><Input value={featuredTitle} onChange={e => setFeaturedTitle(e.target.value)} placeholder="Featured Products" /></FormField>
+            <>
+              <Card>
+                <div className="p-5">
+                  <h3 className="font-semibold text-gray-900 mb-1">Hero Section</h3>
+                  <p className="text-xs text-gray-500 mb-4">The main banner at the top of your homepage.</p>
+                  <ImageUploader label="Hero Background Image" value={heroImageUrl} onChange={setHeroImageUrl} hint="1920×800px recommended. Falls back to gradient if empty." />
+                  {heroImageUrl && (
+                    <div className="grid grid-cols-2 gap-3 mt-3">
+                      <FormField label="Overlay Color">
+                        <div className="flex items-center gap-2">
+                          <input type="color" value={heroOverlayColor} onChange={e => setHeroOverlayColor(e.target.value)} className="w-9 h-9 rounded-lg border cursor-pointer" />
+                          <Input value={heroOverlayColor} onChange={e => setHeroOverlayColor(e.target.value)} />
+                        </div>
+                      </FormField>
+                      <FormField label={`Overlay Opacity: ${heroOverlayOpacity}%`}>
+                        <input type="range" min="0" max="100" value={heroOverlayOpacity} onChange={e => setHeroOverlayOpacity(Number(e.target.value))} className="w-full mt-2" />
+                      </FormField>
+                    </div>
+                  )}
+                  <div className="space-y-3 mt-4">
+                    <FormField label="Hero Headline"><Input value={heroHeadline} onChange={e => setHeroHeadline(e.target.value)} placeholder={`Welcome to ${shop?.name || 'Your Store'}`} /></FormField>
+                    <FormField label="Hero Subtitle"><Input value={heroSubtitle} onChange={e => setHeroSubtitle(e.target.value)} placeholder="Discover our curated collection of premium products." /></FormField>
+                    <FormField label="CTA Button Text"><Input value={heroCta} onChange={e => setHeroCta(e.target.value)} placeholder="Shop Now" /></FormField>
                   </div>
                 </div>
-              </div>
-            </Card>
+              </Card>
+              <Card>
+                <div className="p-5">
+                  <h3 className="font-semibold text-gray-900 mb-1">Featured Products Section</h3>
+                  <p className="text-xs text-gray-500 mb-4">Customize the featured products display.</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <FormField label="Section Title"><Input value={featuredTitle} onChange={e => setFeaturedTitle(e.target.value)} placeholder="Featured Products" /></FormField>
+                    <FormField label="Section Subtitle"><Input value={featuredSubtitle} onChange={e => setFeaturedSubtitle(e.target.value)} placeholder="Hand-picked just for you" /></FormField>
+                  </div>
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Hand-pick Featured Products (optional)</label>
+                    <p className="text-xs text-gray-500 mb-2">Select specific products to feature. Leave empty to auto-select latest.</p>
+                    <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1">
+                      {allProducts.map(p => (
+                        <label key={p.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-50 cursor-pointer">
+                          <input type="checkbox" checked={featuredProductIds.includes(p.id)}
+                            onChange={e => { if (e.target.checked) setFeaturedProductIds([...featuredProductIds, p.id]); else setFeaturedProductIds(featuredProductIds.filter(x => x !== p.id)); }}
+                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                          <span className="text-sm text-gray-700">{p.name}</span>
+                          <span className="text-xs text-gray-400 ml-auto">{currencySymbol}{Number(p.base_price).toFixed(2)}</span>
+                        </label>
+                      ))}
+                      {allProducts.length === 0 && <p className="text-xs text-gray-400 text-center py-4">No products found</p>}
+                    </div>
+                    {featuredProductIds.length > 0 && <p className="text-xs text-indigo-600 mt-1">{featuredProductIds.length} product(s) selected</p>}
+                  </div>
+                </div>
+              </Card>
+              <Card>
+                <div className="p-5">
+                  <h3 className="font-semibold text-gray-900 mb-1">Newsletter / CTA Section</h3>
+                  <p className="text-xs text-gray-500 mb-4">The email signup section at the bottom of your homepage.</p>
+                  <div className="space-y-3">
+                    <FormField label="CTA Headline"><Input value={ctaHeadline} onChange={e => setCtaHeadline(e.target.value)} placeholder="Stay in the Loop" /></FormField>
+                    <FormField label="CTA Subtitle"><Input value={ctaSubtitle} onChange={e => setCtaSubtitle(e.target.value)} placeholder="Subscribe for exclusive offers and new arrivals." /></FormField>
+                  </div>
+                </div>
+              </Card>
+            </>
           )}
 
-          {/* ── Announcement Bar ── */}
-          {activeTab === 'announcement' && (
+          {/* ════════════ NAVIGATION ════════════ */}
+          {activeTab === 'navigation' && (
             <Card>
               <div className="p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="font-semibold text-gray-900">Announcement Bar</h3>
-                    <p className="text-xs text-gray-500 mt-0.5">Show a banner at the top of your store for sales, announcements, etc.</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" checked={announcement.enabled} onChange={e => setAnnouncement({...announcement, enabled: e.target.checked})} className="sr-only peer" />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                  </label>
-                </div>
-                <div className="space-y-3">
-                  <FormField label="Announcement Text">
-                    <Input value={announcement.text} onChange={e => setAnnouncement({...announcement, text: e.target.value})} placeholder="🎉 Free shipping on orders over $50! Use code SHIP50" />
-                  </FormField>
-                  <FormField label="Link (optional)">
-                    <Input value={announcement.link} onChange={e => setAnnouncement({...announcement, link: e.target.value})} placeholder="/products or https://..." />
-                  </FormField>
-                  <div className="grid grid-cols-2 gap-3">
-                    <FormField label="Background Color">
-                      <div className="flex items-center gap-2">
-                        <input type="color" value={announcement.bg_color} onChange={e => setAnnouncement({...announcement, bg_color: e.target.value})} className="w-9 h-9 rounded-lg border cursor-pointer" />
-                        <Input value={announcement.bg_color} onChange={e => setAnnouncement({...announcement, bg_color: e.target.value})} />
-                      </div>
-                    </FormField>
-                    <FormField label="Text Color">
-                      <div className="flex items-center gap-2">
-                        <input type="color" value={announcement.text_color} onChange={e => setAnnouncement({...announcement, text_color: e.target.value})} className="w-9 h-9 rounded-lg border cursor-pointer" />
-                        <Input value={announcement.text_color} onChange={e => setAnnouncement({...announcement, text_color: e.target.value})} />
-                      </div>
-                    </FormField>
-                  </div>
-                </div>
-                {announcement.enabled && announcement.text && (
-                  <div className="mt-4 p-3 rounded-lg text-center text-sm font-medium" style={{ backgroundColor: announcement.bg_color, color: announcement.text_color }}>
-                    {announcement.text}
+                <h3 className="font-semibold text-gray-900 mb-1">Header Navigation Links</h3>
+                <p className="text-xs text-gray-500 mb-4">Manage the links in your store's header. Use relative paths like /store/your-slug/products or full URLs.</p>
+                <NavItemEditor items={navItems} onChange={setNavItems} />
+                {navItems.length === 0 && (
+                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
+                    💡 No links added — default navigation (Home, Products, Cart) will be shown.
                   </div>
                 )}
               </div>
             </Card>
           )}
 
-          {/* ── Social & Contact ── */}
+          {/* ════════════ FOOTER ════════════ */}
+          {activeTab === 'footer' && (
+            <>
+              <Card>
+                <div className="p-5">
+                  <h3 className="font-semibold text-gray-900 mb-1">Footer Content</h3>
+                  <p className="text-xs text-gray-500 mb-4">Customize what appears in your store's footer.</p>
+                  <div className="space-y-3">
+                    <FormField label="Footer Tagline"><Input value={footerTagline} onChange={e => setFooterTagline(e.target.value)} placeholder={`Powered by ${shop?.name || 'Your Store'}`} /></FormField>
+                    <FormField label="Copyright Text"><Input value={footerCopyright} onChange={e => setFooterCopyright(e.target.value)} placeholder={`© ${new Date().getFullYear()} ${shop?.name || 'Your Store'}. All rights reserved.`} /></FormField>
+                    <Toggle checked={showPaymentIcons} onChange={setShowPaymentIcons} label="Show payment method icons in footer" />
+                  </div>
+                </div>
+              </Card>
+              <Card>
+                <div className="p-5">
+                  <h3 className="font-semibold text-gray-900 mb-1">Footer Links</h3>
+                  <p className="text-xs text-gray-500 mb-4">Additional links in footer's quick links column.</p>
+                  <NavItemEditor items={footerLinks} onChange={setFooterLinks} />
+                </div>
+              </Card>
+            </>
+          )}
+
+          {/* ════════════ ANNOUNCEMENT / COUNTDOWN ════════════ */}
+          {activeTab === 'announcement' && (
+            <>
+              <Card>
+                <div className="p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div><h3 className="font-semibold text-gray-900">Announcement Bar</h3><p className="text-xs text-gray-500 mt-0.5">Show a banner at the top of your store.</p></div>
+                    <Toggle checked={announcement.enabled} onChange={v => setAnnouncement({ ...announcement, enabled: v })} />
+                  </div>
+                  <div className="space-y-3">
+                    <FormField label="Announcement Text"><Input value={announcement.text} onChange={e => setAnnouncement({ ...announcement, text: e.target.value })} placeholder="🎉 Free shipping on orders over $50!" /></FormField>
+                    <FormField label="Link (optional)"><Input value={announcement.link} onChange={e => setAnnouncement({ ...announcement, link: e.target.value })} placeholder="/products or https://..." /></FormField>
+                    <div className="grid grid-cols-2 gap-3">
+                      <FormField label="Background Color">
+                        <div className="flex items-center gap-2">
+                          <input type="color" value={announcement.bg_color} onChange={e => setAnnouncement({ ...announcement, bg_color: e.target.value })} className="w-9 h-9 rounded-lg border cursor-pointer" />
+                          <Input value={announcement.bg_color} onChange={e => setAnnouncement({ ...announcement, bg_color: e.target.value })} />
+                        </div>
+                      </FormField>
+                      <FormField label="Text Color">
+                        <div className="flex items-center gap-2">
+                          <input type="color" value={announcement.text_color} onChange={e => setAnnouncement({ ...announcement, text_color: e.target.value })} className="w-9 h-9 rounded-lg border cursor-pointer" />
+                          <Input value={announcement.text_color} onChange={e => setAnnouncement({ ...announcement, text_color: e.target.value })} />
+                        </div>
+                      </FormField>
+                    </div>
+                  </div>
+                  {announcement.enabled && announcement.text && (
+                    <div className="mt-4 p-3 rounded-lg text-center text-sm font-medium" style={{ backgroundColor: announcement.bg_color, color: announcement.text_color }}>{announcement.text}</div>
+                  )}
+                </div>
+              </Card>
+              <Card>
+                <div className="p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div><h3 className="font-semibold text-gray-900">Countdown Timer</h3><p className="text-xs text-gray-500 mt-0.5">Show a sale countdown banner below the announcement bar.</p></div>
+                    <Toggle checked={countdownEnabled} onChange={setCountdownEnabled} />
+                  </div>
+                  <div className="space-y-3">
+                    <FormField label="Headline"><Input value={countdownHeadline} onChange={e => setCountdownHeadline(e.target.value)} placeholder="🔥 Flash Sale Ends In:" /></FormField>
+                    <FormField label="End Date & Time"><input type="datetime-local" value={countdownEndDate} onChange={e => setCountdownEndDate(e.target.value)} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm" /></FormField>
+                    <div className="grid grid-cols-2 gap-3">
+                      <FormField label="Background">
+                        <div className="flex items-center gap-2"><input type="color" value={countdownBg} onChange={e => setCountdownBg(e.target.value)} className="w-9 h-9 rounded-lg border cursor-pointer" /><Input value={countdownBg} onChange={e => setCountdownBg(e.target.value)} /></div>
+                      </FormField>
+                      <FormField label="Text Color">
+                        <div className="flex items-center gap-2"><input type="color" value={countdownTextColor} onChange={e => setCountdownTextColor(e.target.value)} className="w-9 h-9 rounded-lg border cursor-pointer" /><Input value={countdownTextColor} onChange={e => setCountdownTextColor(e.target.value)} /></div>
+                      </FormField>
+                    </div>
+                  </div>
+                  {countdownEnabled && countdownHeadline && (
+                    <div className="mt-4 p-3 rounded-lg text-center text-sm font-bold" style={{ backgroundColor: countdownBg, color: countdownTextColor }}>
+                      {countdownHeadline} <span className="font-mono ml-2">00d 12h 34m 56s</span>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            </>
+          )}
+
+          {/* ════════════ SOCIAL & CONTACT ════════════ */}
           {activeTab === 'social' && (
             <>
               <Card>
                 <div className="p-5">
                   <h3 className="font-semibold text-gray-900 mb-1">Social Media Links</h3>
-                  <p className="text-xs text-gray-500 mb-4">Add your social profiles. Shown in the storefront footer and contact section.</p>
+                  <p className="text-xs text-gray-500 mb-4">Shown in the storefront footer and contact section.</p>
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
-                      <FormField label="📘 Facebook"><Input value={socialLinks.facebook} onChange={e => setSocialLinks({...socialLinks, facebook: e.target.value})} placeholder="https://facebook.com/yourpage" /></FormField>
-                      <FormField label="📸 Instagram"><Input value={socialLinks.instagram} onChange={e => setSocialLinks({...socialLinks, instagram: e.target.value})} placeholder="https://instagram.com/yourprofile" /></FormField>
+                      <FormField label="📘 Facebook"><Input value={socialLinks.facebook} onChange={e => setSocialLinks({ ...socialLinks, facebook: e.target.value })} placeholder="https://facebook.com/yourpage" /></FormField>
+                      <FormField label="📸 Instagram"><Input value={socialLinks.instagram} onChange={e => setSocialLinks({ ...socialLinks, instagram: e.target.value })} placeholder="https://instagram.com/your" /></FormField>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <FormField label="🐦 Twitter / X"><Input value={socialLinks.twitter} onChange={e => setSocialLinks({...socialLinks, twitter: e.target.value})} placeholder="https://x.com/yourhandle" /></FormField>
-                      <FormField label="🎵 TikTok"><Input value={socialLinks.tiktok} onChange={e => setSocialLinks({...socialLinks, tiktok: e.target.value})} placeholder="https://tiktok.com/@yourhandle" /></FormField>
+                      <FormField label="🐦 Twitter / X"><Input value={socialLinks.twitter} onChange={e => setSocialLinks({ ...socialLinks, twitter: e.target.value })} placeholder="https://x.com/yourhandle" /></FormField>
+                      <FormField label="🎵 TikTok"><Input value={socialLinks.tiktok} onChange={e => setSocialLinks({ ...socialLinks, tiktok: e.target.value })} placeholder="https://tiktok.com/@you" /></FormField>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <FormField label="📺 YouTube"><Input value={socialLinks.youtube} onChange={e => setSocialLinks({...socialLinks, youtube: e.target.value})} placeholder="https://youtube.com/@yourchannel" /></FormField>
-                      <FormField label="💬 WhatsApp"><Input value={socialLinks.whatsapp} onChange={e => setSocialLinks({...socialLinks, whatsapp: e.target.value})} placeholder="+880XXXXXXXXXX" /></FormField>
+                      <FormField label="📺 YouTube"><Input value={socialLinks.youtube} onChange={e => setSocialLinks({ ...socialLinks, youtube: e.target.value })} placeholder="https://youtube.com/@you" /></FormField>
+                      <FormField label="💬 WhatsApp"><Input value={socialLinks.whatsapp} onChange={e => setSocialLinks({ ...socialLinks, whatsapp: e.target.value })} placeholder="+880XXXXXXXXXX" /></FormField>
                     </div>
                   </div>
                 </div>
@@ -415,98 +842,153 @@ export default function WebsiteSettings() {
               <Card>
                 <div className="p-5">
                   <h3 className="font-semibold text-gray-900 mb-1">Business Contact Info</h3>
-                  <p className="text-xs text-gray-500 mb-4">Shown on your storefront for customer trust. Also enables a floating contact button.</p>
+                  <p className="text-xs text-gray-500 mb-4">Shown on storefront footer. Enables floating WhatsApp button.</p>
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
-                      <FormField label="Phone"><Input value={businessInfo.phone} onChange={e => setBusinessInfo({...businessInfo, phone: e.target.value})} placeholder="+880 1XXX XXXXXX" /></FormField>
-                      <FormField label="Email"><Input value={businessInfo.email} onChange={e => setBusinessInfo({...businessInfo, email: e.target.value})} placeholder="hello@yourshop.com" /></FormField>
+                      <FormField label="Phone"><Input value={businessInfo.phone} onChange={e => setBusinessInfo({ ...businessInfo, phone: e.target.value })} placeholder="+880 1XXX XXXXXX" /></FormField>
+                      <FormField label="Email"><Input value={businessInfo.email} onChange={e => setBusinessInfo({ ...businessInfo, email: e.target.value })} placeholder="hello@yourshop.com" /></FormField>
                     </div>
-                    <FormField label="WhatsApp Number (for floating chat button)">
-                      <Input value={businessInfo.whatsapp} onChange={e => setBusinessInfo({...businessInfo, whatsapp: e.target.value})} placeholder="+880XXXXXXXXXX (with country code)" />
-                    </FormField>
-                    <FormField label="Business Address"><Input value={businessInfo.address} onChange={e => setBusinessInfo({...businessInfo, address: e.target.value})} placeholder="123 Main St, Dhaka, Bangladesh" /></FormField>
-                    <FormField label="Business Hours"><Input value={businessInfo.hours} onChange={e => setBusinessInfo({...businessInfo, hours: e.target.value})} placeholder="Mon-Fri: 9am-6pm, Sat: 10am-4pm" /></FormField>
+                    <FormField label="WhatsApp (floating chat button)"><Input value={businessInfo.whatsapp} onChange={e => setBusinessInfo({ ...businessInfo, whatsapp: e.target.value })} placeholder="+880XXXXXXXXXX" /></FormField>
+                    <FormField label="Business Address"><Input value={businessInfo.address} onChange={e => setBusinessInfo({ ...businessInfo, address: e.target.value })} placeholder="123 Main St, Dhaka" /></FormField>
+                    <FormField label="Business Hours"><Input value={businessInfo.hours} onChange={e => setBusinessInfo({ ...businessInfo, hours: e.target.value })} placeholder="Mon-Fri: 9am-6pm" /></FormField>
                   </div>
                 </div>
               </Card>
             </>
           )}
 
-          {/* ── Store Policies ── */}
-          {activeTab === 'policies' && (
+          {/* ════════════ STORE CONFIG ════════════ */}
+          {activeTab === 'store' && (
             <>
               <Card>
                 <div className="p-5">
-                  <h3 className="font-semibold text-gray-900 mb-1">Store Policies</h3>
-                  <p className="text-xs text-gray-500 mb-4">These build customer trust. Shown as links in your storefront footer and dedicated pages.</p>
-                  <div className="space-y-4">
-                    <FormField label="About Us" hint="Tell customers your story">
-                      <Textarea value={storePolicies.about_us} onChange={e => setStorePolicies({...storePolicies, about_us: e.target.value})} placeholder="We are a small business passionate about..." className="!h-24" />
+                  <h3 className="font-semibold text-gray-900 mb-1">Currency</h3>
+                  <p className="text-xs text-gray-500 mb-4">Set how prices are displayed across your store.</p>
+                  <div className="space-y-3">
+                    <FormField label="Currency Preset">
+                      <select className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" value={currencyCode}
+                        onChange={e => { const c = CURRENCIES.find(x => x.code === e.target.value); if (c) { setCurrencyCode(c.code); setCurrencySymbol(c.symbol); } }}>
+                        {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.symbol} {c.code} — {c.name}</option>)}
+                      </select>
                     </FormField>
-                    <FormField label="Return & Refund Policy" hint="Helps customers feel safe purchasing">
-                      <Textarea value={storePolicies.return_policy} onChange={e => setStorePolicies({...storePolicies, return_policy: e.target.value})} placeholder="We offer a 30-day return policy on all unused items..." className="!h-24" />
+                    <div className="grid grid-cols-3 gap-3">
+                      <FormField label="Symbol"><Input value={currencySymbol} onChange={e => setCurrencySymbol(e.target.value)} /></FormField>
+                      <FormField label="Position">
+                        <select className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" value={currencyPosition} onChange={e => setCurrencyPosition(e.target.value)}>
+                          <option value="before">Before (৳100)</option>
+                          <option value="after">After (100৳)</option>
+                        </select>
+                      </FormField>
+                      <FormField label="Decimals"><Input type="number" min="0" max="4" value={currencyDecimals} onChange={e => setCurrencyDecimals(e.target.value)} /></FormField>
+                    </div>
+                    <div className="p-3 bg-gray-50 border rounded-lg text-sm">
+                      Preview: <span className="font-bold text-indigo-600">{currencyPosition === 'after' ? `1,234.${(currencyDecimals > 0 ? '56' : '').slice(0, currencyDecimals)}${currencySymbol}` : `${currencySymbol}1,234.${(currencyDecimals > 0 ? '56' : '').slice(0, currencyDecimals)}`}</span>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+              <Card>
+                <div className="p-5">
+                  <h3 className="font-semibold text-gray-900 mb-1">Product Display</h3>
+                  <p className="text-xs text-gray-500 mb-4">Control how products are shown on your store.</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <FormField label="Products/Page"><Input type="number" min="4" max="48" value={productsPerPage} onChange={e => setProductsPerPage(e.target.value)} /></FormField>
+                    <FormField label="Grid Columns">
+                      <select className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" value={gridColumns} onChange={e => setGridColumns(e.target.value)}>
+                        <option value={2}>2 Columns</option><option value={3}>3 Columns</option><option value={4}>4 Columns</option>
+                      </select>
                     </FormField>
-                    <FormField label="Privacy Policy" hint="Required for customer data protection">
-                      <Textarea value={storePolicies.privacy_policy} onChange={e => setStorePolicies({...storePolicies, privacy_policy: e.target.value})} placeholder="We respect your privacy. Your data is..." className="!h-24" />
-                    </FormField>
-                    <FormField label="Terms of Service">
-                      <Textarea value={storePolicies.terms} onChange={e => setStorePolicies({...storePolicies, terms: e.target.value})} placeholder="By using our store, you agree to..." className="!h-24" />
+                    <FormField label="Default Sort">
+                      <select className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" value={defaultSort} onChange={e => setDefaultSort(e.target.value)}>
+                        <option value="newest">Newest First</option><option value="price_asc">Price: Low → High</option><option value="price_desc">Price: High → Low</option><option value="name_asc">Name A-Z</option>
+                      </select>
                     </FormField>
                   </div>
+                  <div className="mt-3 space-y-2">
+                    <Toggle checked={showOutOfStock} onChange={setShowOutOfStock} label="Show out-of-stock products" />
+                  </div>
+                </div>
+              </Card>
+              <Card>
+                <div className="p-5">
+                  <h3 className="font-semibold text-gray-900 mb-1">Checkout & Cart</h3>
+                  <p className="text-xs text-gray-500 mb-4">Control cart and checkout behavior.</p>
+                  <div className="space-y-3">
+                    <FormField label="Minimum Order Amount (optional)"><Input type="number" min="0" step="0.01" value={minOrderAmount} onChange={e => setMinOrderAmount(e.target.value)} placeholder="No minimum" /></FormField>
+                    <Toggle checked={guestCheckout} onChange={setGuestCheckout} label="Allow guest checkout (no login required)" />
+                    <Toggle checked={cookieConsent} onChange={setCookieConsent} label="Show cookie consent banner" />
+                  </div>
+                </div>
+              </Card>
+              <Card>
+                <div className="p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div><h3 className="font-semibold text-gray-900">Maintenance Mode</h3><p className="text-xs text-gray-500 mt-0.5">Take your store offline temporarily.</p></div>
+                    <Toggle checked={maintenanceMode} onChange={setMaintenanceMode} />
+                  </div>
+                  {maintenanceMode && (
+                    <FormField label="Maintenance Message"><Textarea value={maintenanceMessage} onChange={e => setMaintenanceMessage(e.target.value)} placeholder="We're updating our store. We'll be back shortly!" /></FormField>
+                  )}
                 </div>
               </Card>
             </>
           )}
 
-          {/* ── Trust Badges ── */}
+          {/* ════════════ POLICIES ════════════ */}
+          {activeTab === 'policies' && (
+            <Card>
+              <div className="p-5">
+                <h3 className="font-semibold text-gray-900 mb-1">Store Policies</h3>
+                <p className="text-xs text-gray-500 mb-4">Shown as links in your storefront footer and dedicated pages.</p>
+                <div className="space-y-4">
+                  <FormField label="About Us"><Textarea value={storePolicies.about_us} onChange={e => setStorePolicies({ ...storePolicies, about_us: e.target.value })} placeholder="We are a small business passionate about..." className="!h-24" /></FormField>
+                  <FormField label="Return & Refund Policy"><Textarea value={storePolicies.return_policy} onChange={e => setStorePolicies({ ...storePolicies, return_policy: e.target.value })} placeholder="We offer a 30-day return policy..." className="!h-24" /></FormField>
+                  <FormField label="Privacy Policy"><Textarea value={storePolicies.privacy_policy} onChange={e => setStorePolicies({ ...storePolicies, privacy_policy: e.target.value })} placeholder="We respect your privacy..." className="!h-24" /></FormField>
+                  <FormField label="Terms of Service"><Textarea value={storePolicies.terms} onChange={e => setStorePolicies({ ...storePolicies, terms: e.target.value })} placeholder="By using our store..." className="!h-24" /></FormField>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* ════════════ TRUST BADGES ════════════ */}
           {activeTab === 'trust' && (
             <Card>
               <div className="p-5">
                 <h3 className="font-semibold text-gray-900 mb-1">Trust Badges</h3>
-                <p className="text-xs text-gray-500 mb-4">Shown on your homepage to build customer confidence. Edit icon, title, and description.</p>
+                <p className="text-xs text-gray-500 mb-4">Shown on your homepage to build customer confidence.</p>
                 <div className="space-y-4">
                   {trustBadges.map((badge, idx) => (
                     <div key={idx} className="flex gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                      <div className="flex-shrink-0">
-                        <Input value={badge.icon} onChange={e => { const nb = [...trustBadges]; nb[idx] = {...nb[idx], icon: e.target.value}; setTrustBadges(nb); }} className="!w-16 text-center text-xl !px-2" />
-                      </div>
+                      <div className="flex-shrink-0"><Input value={badge.icon} onChange={e => { const nb = [...trustBadges]; nb[idx] = { ...nb[idx], icon: e.target.value }; setTrustBadges(nb); }} className="!w-16 text-center text-xl !px-2" /></div>
                       <div className="flex-1 space-y-2">
-                        <Input value={badge.title} onChange={e => { const nb = [...trustBadges]; nb[idx] = {...nb[idx], title: e.target.value}; setTrustBadges(nb); }} placeholder="Badge title" />
-                        <Input value={badge.text} onChange={e => { const nb = [...trustBadges]; nb[idx] = {...nb[idx], text: e.target.value}; setTrustBadges(nb); }} placeholder="Badge description" />
+                        <Input value={badge.title} onChange={e => { const nb = [...trustBadges]; nb[idx] = { ...nb[idx], title: e.target.value }; setTrustBadges(nb); }} placeholder="Badge title" />
+                        <Input value={badge.text} onChange={e => { const nb = [...trustBadges]; nb[idx] = { ...nb[idx], text: e.target.value }; setTrustBadges(nb); }} placeholder="Badge description" />
                       </div>
                       <button onClick={() => setTrustBadges(trustBadges.filter((_, i) => i !== idx))} className="text-gray-400 hover:text-red-500 self-start mt-2">✕</button>
                     </div>
                   ))}
                   {trustBadges.length < 6 && (
                     <button onClick={() => setTrustBadges([...trustBadges, { icon: '⭐', title: 'New Badge', text: 'Description' }])}
-                      className="w-full p-3 border-2 border-dashed border-gray-200 rounded-lg text-sm text-gray-500 hover:border-indigo-300 hover:text-indigo-600 transition">
-                      + Add Trust Badge
-                    </button>
+                      className="w-full p-3 border-2 border-dashed border-gray-200 rounded-lg text-sm text-gray-500 hover:border-indigo-300 hover:text-indigo-600 transition">+ Add Trust Badge</button>
                   )}
                 </div>
               </div>
             </Card>
           )}
 
-          {/* ── SEO ── */}
+          {/* ════════════ SEO ════════════ */}
           {activeTab === 'seo' && (
             <Card>
               <div className="p-5">
                 <h3 className="font-semibold text-gray-900 mb-1">SEO Defaults</h3>
-                <p className="text-xs text-gray-500 mb-4">Default meta tags for search engines. Visible in Google results.</p>
+                <p className="text-xs text-gray-500 mb-4">Default meta tags for search engines.</p>
                 <div className="space-y-3">
-                  <FormField label="Meta Title">
-                    <Input value={seoTitle} onChange={e => setSeoTitle(e.target.value)} placeholder={shop?.name || 'Your Store Name'} />
-                    <p className="text-[11px] text-gray-400 mt-1">{seoTitle.length}/60 recommended</p>
-                  </FormField>
-                  <FormField label="Meta Description">
-                    <Textarea value={seoDescription} onChange={e => setSeoDescription(e.target.value)} placeholder="A brief description of your store..." />
-                    <p className="text-[11px] text-gray-400 mt-1">{seoDescription.length}/160 recommended</p>
-                  </FormField>
+                  <FormField label="Meta Title"><Input value={seoTitle} onChange={e => setSeoTitle(e.target.value)} placeholder={shop?.name || 'Your Store'} /><p className="text-[11px] text-gray-400 mt-1">{seoTitle.length}/60 recommended</p></FormField>
+                  <FormField label="Meta Description"><Textarea value={seoDescription} onChange={e => setSeoDescription(e.target.value)} placeholder="A brief description of your store..." /><p className="text-[11px] text-gray-400 mt-1">{seoDescription.length}/160 recommended</p></FormField>
                 </div>
                 <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
                   <p className="text-xs text-gray-500 mb-2 font-medium">Google Preview</p>
-                  <p className="text-blue-600 text-base font-medium truncate">{seoTitle || shop?.name || 'Your Store Name'}</p>
+                  <p className="text-blue-600 text-base font-medium truncate">{seoTitle || shop?.name || 'Your Store'}</p>
                   <p className="text-xs text-green-700 font-mono truncate">{window.location.origin}{storeUrl || '/store/your-shop'}</p>
                   <p className="text-xs text-gray-600 mt-0.5 line-clamp-2">{seoDescription || 'Add a meta description for better SEO...'}</p>
                 </div>
@@ -514,23 +996,63 @@ export default function WebsiteSettings() {
             </Card>
           )}
 
-          {/* ── Advanced ── */}
+          {/* ════════════ ANALYTICS ════════════ */}
+          {activeTab === 'analytics' && (
+            <Card>
+              <div className="p-5">
+                <h3 className="font-semibold text-gray-900 mb-1">Analytics & Tracking</h3>
+                <p className="text-xs text-gray-500 mb-4">Add tracking IDs to monitor your store performance. No code required.</p>
+                <div className="space-y-4">
+                  <FormField label="Google Analytics 4 (GA4) Measurement ID">
+                    <Input value={ga4Id} onChange={e => setGa4Id(e.target.value)} placeholder="G-XXXXXXXXXX" />
+                    <p className="text-[11px] text-gray-400 mt-1">Found in GA4 → Admin → Data Streams → Measurement ID</p>
+                  </FormField>
+                  <FormField label="Facebook Pixel ID">
+                    <Input value={fbPixelId} onChange={e => setFbPixelId(e.target.value)} placeholder="1234567890" />
+                    <p className="text-[11px] text-gray-400 mt-1">Found in Meta Events Manager → Pixel settings</p>
+                  </FormField>
+                  <FormField label="Google Tag Manager ID">
+                    <Input value={gtmId} onChange={e => setGtmId(e.target.value)} placeholder="GTM-XXXXXXX" />
+                    <p className="text-[11px] text-gray-400 mt-1">Found in GTM → Workspace → Container ID</p>
+                  </FormField>
+                </div>
+                {(ga4Id || fbPixelId || gtmId) && (
+                  <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700">
+                    ✅ Active tracking: {[ga4Id && 'GA4', fbPixelId && 'Facebook Pixel', gtmId && 'GTM'].filter(Boolean).join(', ')}
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
+
+          {/* ════════════ POPUPS ════════════ */}
+          {activeTab === 'popups' && (
+            <Card>
+              <div className="p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div><h3 className="font-semibold text-gray-900">Welcome Popup</h3><p className="text-xs text-gray-500 mt-0.5">Greet first-time visitors with a special offer or message.</p></div>
+                  <Toggle checked={popupEnabled} onChange={setPopupEnabled} />
+                </div>
+                <div className="space-y-3">
+                  <FormField label="Headline"><Input value={popupHeadline} onChange={e => setPopupHeadline(e.target.value)} placeholder="Welcome! 🎉" /></FormField>
+                  <FormField label="Body"><Textarea value={popupBody} onChange={e => setPopupBody(e.target.value)} placeholder="Get 10% off your first order..." className="!h-20" /></FormField>
+                  <FormField label="Discount Code (optional)"><Input value={popupDiscountCode} onChange={e => setPopupDiscountCode(e.target.value)} placeholder="WELCOME10" /></FormField>
+                  <div className="grid grid-cols-2 gap-3">
+                    <FormField label="CTA Button Text"><Input value={popupCtaText} onChange={e => setPopupCtaText(e.target.value)} placeholder="Shop Now" /></FormField>
+                    <FormField label="CTA Link"><Input value={popupCtaLink} onChange={e => setPopupCtaLink(e.target.value)} placeholder="/products" /></FormField>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <FormField label="Delay (seconds)"><Input type="number" min="0" max="60" value={popupDelay} onChange={e => setPopupDelay(e.target.value)} /></FormField>
+                    <div className="mt-6"><Toggle checked={popupShowOnce} onChange={setPopupShowOnce} label="Show only once per visitor" /></div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* ════════════ ADVANCED ════════════ */}
           {activeTab === 'advanced' && (
             <>
-              <Card>
-                <div className="p-5">
-                  <h3 className="font-semibold text-gray-900 mb-1">Header Config (JSON)</h3>
-                  <p className="text-xs text-gray-500 mb-3">Logo, navigation links, etc.</p>
-                  <Textarea value={headerConfig} onChange={e => setHeaderConfig(e.target.value)} className="font-mono text-xs !h-28" />
-                </div>
-              </Card>
-              <Card>
-                <div className="p-5">
-                  <h3 className="font-semibold text-gray-900 mb-1">Footer Config (JSON)</h3>
-                  <p className="text-xs text-gray-500 mb-3">Footer text, links, copyright.</p>
-                  <Textarea value={footerConfig} onChange={e => setFooterConfig(e.target.value)} className="font-mono text-xs !h-28" />
-                </div>
-              </Card>
               <Card>
                 <div className="p-5">
                   <h3 className="font-semibold text-gray-900 mb-1">Custom CSS</h3>
@@ -547,10 +1069,10 @@ export default function WebsiteSettings() {
               </Card>
               <Card>
                 <div className="p-5">
-                  <h3 className="font-semibold text-gray-900 mb-3">Info</h3>
+                  <h3 className="font-semibold text-gray-900 mb-3">System Info</h3>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <p className="text-gray-500">Template</p><p className="font-medium capitalize">{selectedTemplate.replace('_', ' ')}</p>
-                    <p className="text-gray-500">Overrides</p><p className="font-medium">{overrideCount}</p>
+                    <p className="text-gray-500">Color Overrides</p><p className="font-medium">{overrideCount}</p>
                     <p className="text-gray-500">Last Updated</p><p>{settings?.updated_at ? new Date(settings.updated_at).toLocaleString() : '—'}</p>
                   </div>
                 </div>
@@ -565,9 +1087,7 @@ export default function WebsiteSettings() {
             <Card>
               <div className="p-3 border-b border-gray-200 flex items-center justify-between bg-gray-50 rounded-t-xl">
                 <div className="flex items-center gap-2">
-                  <div className="flex gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-red-400" /><div className="w-2.5 h-2.5 rounded-full bg-yellow-400" /><div className="w-2.5 h-2.5 rounded-full bg-green-400" />
-                  </div>
+                  <div className="flex gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-400" /><div className="w-2.5 h-2.5 rounded-full bg-yellow-400" /><div className="w-2.5 h-2.5 rounded-full bg-green-400" /></div>
                   <span className="text-xs text-gray-400 font-mono ml-2">{shop ? `${shop.slug}.ecomai.dev` : 'store preview'}</span>
                 </div>
                 {storeUrl && <a href={storeUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">Open ↗</a>}
@@ -577,11 +1097,7 @@ export default function WebsiteSettings() {
                   <iframe ref={iframeRef} src={storeUrl} className="w-full h-full border-0" title="Store Preview" />
                 ) : (
                   <div className="flex items-center justify-center h-full text-center p-6">
-                    <div>
-                      <div className="text-5xl mb-4">🎨</div>
-                      <p className="text-sm font-medium text-gray-600">Live Preview</p>
-                      <p className="text-xs text-gray-400 mt-1 max-w-xs">Preview appears after you save with a shop slug configured.</p>
-                    </div>
+                    <div><div className="text-5xl mb-4">🎨</div><p className="text-sm font-medium text-gray-600">Live Preview</p><p className="text-xs text-gray-400 mt-1">Preview appears after you save with a shop slug.</p></div>
                   </div>
                 )}
               </div>

@@ -5,7 +5,7 @@ import { storeApi } from '../../api-public';
 import { resolveTokens } from '../templates';
 
 export default function StoreHome() {
-  const { shop, shopSlug, theme, tokens, homepage, trustBadges } = useStore();
+  const { shop, shopSlug, theme, tokens, homepage, trustBadges, formatPrice } = useStore();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -36,8 +36,19 @@ export default function StoreHome() {
       {/* Hero Section */}
       <section
         className="relative overflow-hidden"
-        style={{ background: t.heroGradient }}
+        style={{
+          background: homepage?.hero?.image_url
+            ? `url(${homepage.hero.image_url}) center/cover no-repeat`
+            : t.heroGradient,
+        }}
       >
+        {/* Dark overlay for hero image */}
+        {homepage?.hero?.image_url && (
+          <div className="absolute inset-0" style={{
+            backgroundColor: homepage.hero.overlay_color || '#000',
+            opacity: (homepage.hero.overlay_opacity ?? 50) / 100,
+          }} />
+        )}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32 relative z-10">
           <div className="max-w-2xl">
             <h1
@@ -134,7 +145,7 @@ export default function StoreHome() {
                       </p>
                     )}
                     <p className="text-lg font-bold" style={{ color: t.primary }}>
-                      ৳{Number(product.base_price).toFixed(2)}
+                      {formatPrice(product.base_price)}
                     </p>
                   </div>
                 </div>

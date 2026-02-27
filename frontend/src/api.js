@@ -142,6 +142,15 @@ export const inventory = {
 export const websiteSettings = {
   get: () => request('GET', '/website-settings/me'),
   update: (data) => request('PATCH', '/website-settings/me', data),
+  uploadImage: async (file) => {
+    const fd = new FormData();
+    fd.append('image', file);
+    const headers = {};
+    if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+    const res = await fetch(`${API_BASE}/website-settings/upload`, { method: 'POST', headers, body: fd });
+    if (!res.ok) { const err = await res.json().catch(() => ({ message: 'Upload failed' })); throw new Error(err.message || `${res.status}`); }
+    return res.json();
+  },
 };
 
 export const categories = {

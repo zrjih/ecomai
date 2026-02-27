@@ -6,7 +6,7 @@ import { storeApi } from '../../api-public';
 import { resolveTokens } from '../templates';
 
 export default function StoreCheckout() {
-  const { shopSlug, theme, tokens } = useStore();
+  const { shopSlug, theme, tokens, formatPrice } = useStore();
   const { items, total, count, clearCart } = useCart();
   const t = resolveTokens(theme, tokens);
 
@@ -122,7 +122,7 @@ export default function StoreCheckout() {
             <span style={{ color: t.textMuted }}>Order ID</span>
             <span className="font-mono text-xs font-medium" style={{ color: t.text }}>{order.id?.slice(0, 8)}...</span>
             <span style={{ color: t.textMuted }}>Total</span>
-            <span className="font-bold" style={{ color: t.primary }}>৳{Number(order.total_amount).toLocaleString()}</span>
+            <span className="font-bold" style={{ color: t.primary }}>{formatPrice(order.total_amount)}</span>
             <span style={{ color: t.textMuted }}>Items</span>
             <span style={{ color: t.text }}>{order.items?.length || 0}</span>
             <span style={{ color: t.textMuted }}>Status</span>
@@ -225,13 +225,13 @@ export default function StoreCheckout() {
                 {items.map((item) => (
                   <div key={item.key} className="flex justify-between text-sm">
                     <span style={{ color: t.textMuted }}>{item.name} {item.variant_title ? `(${item.variant_title})` : ''} × {item.quantity}</span>
-                    <span className="font-medium" style={{ color: t.text }}>৳{(item.price * item.quantity).toFixed(2)}</span>
+                    <span className="font-medium" style={{ color: t.text }}>{formatPrice(item.price * item.quantity)}</span>
                   </div>
                 ))}
                 <hr style={{ borderColor: t.border }} />
                 <div className="flex justify-between text-sm">
                   <span style={{ color: t.textMuted }}>Subtotal</span>
-                  <span className="font-medium" style={{ color: t.text }}>৳{total.toFixed(2)}</span>
+                  <span className="font-medium" style={{ color: t.text }}>{formatPrice(total)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span style={{ color: t.textMuted }}>Shipping</span>
@@ -240,12 +240,12 @@ export default function StoreCheckout() {
                 <hr style={{ borderColor: t.border }} />
                 <div className="flex justify-between">
                   <span className="font-bold" style={{ color: t.text }}>Total</span>
-                  <span className="text-xl font-bold" style={{ color: t.primary }}>৳{total.toFixed(2)}</span>
+                  <span className="text-xl font-bold" style={{ color: t.primary }}>{formatPrice(total)}</span>
                 </div>
               </div>
 
               <button type="submit" disabled={loading} className="w-full py-3.5 text-base font-semibold transition hover:opacity-90 disabled:opacity-50" style={{ backgroundColor: t.primary, color: t.bg, borderRadius: t.buttonRadius }}>
-                {loading ? 'Proceeding to Payment...' : `Pay Now — ৳${total.toFixed(2)}`}
+                {loading ? 'Proceeding to Payment...' : `Pay Now — ${formatPrice(total)}`}
               </button>
 
               <div className="flex items-center justify-center gap-2 mt-4">

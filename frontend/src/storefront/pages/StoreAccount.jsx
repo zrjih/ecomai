@@ -134,7 +134,7 @@ function OrderTimeline({ status, t }) {
 export default function StoreAccount() {
   const { shopSlug } = useParams();
   const navigate = useNavigate();
-  const { theme, tokens } = useStore();
+  const { theme, tokens, formatPrice } = useStore();
   const t = resolveTokens(theme, tokens);
 
   const token = localStorage.getItem(`customer_token_${shopSlug}`);
@@ -242,13 +242,13 @@ export default function StoreAccount() {
           {tab === 'dashboard' && (
             <DashboardTab t={t} profile={profile} orders={orders} shopSlug={shopSlug}
               totalSpent={totalSpent} deliveredCount={deliveredCount}
-              setTab={setTab} viewOrder={viewOrder} btnPrimary={btnPrimary} />
+              setTab={setTab} viewOrder={viewOrder} btnPrimary={btnPrimary} formatPrice={formatPrice} />
           )}
           {tab === 'orders' && (
             <OrdersTab t={t} orders={orders} shopSlug={shopSlug}
               selectedOrder={selectedOrder} orderDetail={orderDetail}
               detailLoading={detailLoading} setSelectedOrder={setSelectedOrder}
-              setOrderDetail={setOrderDetail} viewOrder={viewOrder} btnPrimary={btnPrimary} />
+              setOrderDetail={setOrderDetail} viewOrder={viewOrder} btnPrimary={btnPrimary} formatPrice={formatPrice} />
           )}
           {tab === 'profile' && (
             <ProfileTab t={t} profile={profile} setProfile={setProfile}
@@ -273,7 +273,7 @@ export default function StoreAccount() {
    ══════════════════════════════════════════════ */
 
 /* ── Dashboard Tab ── */
-function DashboardTab({ t, profile, orders, shopSlug, totalSpent, deliveredCount, setTab, viewOrder, btnPrimary }) {
+function DashboardTab({ t, profile, orders, shopSlug, totalSpent, deliveredCount, setTab, viewOrder, btnPrimary, formatPrice }) {
   return (
     <div className="space-y-6">
       {/* Welcome hero */}
@@ -292,7 +292,7 @@ function DashboardTab({ t, profile, orders, shopSlug, totalSpent, deliveredCount
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: 'Total Orders', value: orders.length, icon: Icons.package, color: t.primary },
-          { label: 'Total Spent', value: `৳${totalSpent.toLocaleString()}`, icon: Icons.money, color: '#16a34a' },
+          { label: 'Total Spent', value: formatPrice(totalSpent), icon: Icons.money, color: '#16a34a' },
           { label: 'Delivered', value: deliveredCount, icon: Icons.orders, color: '#8b5cf6' },
         ].map((stat) => (
           <Card t={t} key={stat.label}>
@@ -341,7 +341,7 @@ function DashboardTab({ t, profile, orders, shopSlug, totalSpent, deliveredCount
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-bold text-sm" style={{ color: t.text }}>৳{Number(order.total_amount).toLocaleString()}</div>
+                  <div className="font-bold text-sm" style={{ color: t.text }}>{formatPrice(order.total_amount)}</div>
                   <StatusBadge status={order.status} />
                 </div>
               </button>
@@ -354,7 +354,7 @@ function DashboardTab({ t, profile, orders, shopSlug, totalSpent, deliveredCount
 }
 
 /* ── Orders Tab ── */
-function OrdersTab({ t, orders, shopSlug, selectedOrder, orderDetail, detailLoading, setSelectedOrder, setOrderDetail, viewOrder, btnPrimary }) {
+function OrdersTab({ t, orders, shopSlug, selectedOrder, orderDetail, detailLoading, setSelectedOrder, setOrderDetail, viewOrder, btnPrimary, formatPrice }) {
   /* Detail view */
   if (selectedOrder && orderDetail) {
     return (
@@ -389,16 +389,16 @@ function OrdersTab({ t, orders, shopSlug, selectedOrder, orderDetail, detailLoad
                 style={{ borderBottom: i < orderDetail.items.length - 1 ? `1px solid ${t.border}` : 'none' }}>
                 <div>
                   <div className="font-medium text-sm" style={{ color: t.text }}>{item.item_name}</div>
-                  <div className="text-xs mt-0.5" style={{ color: t.textMuted }}>Qty: {item.quantity} × ৳{Number(item.unit_price).toFixed(2)}</div>
+                  <div className="text-xs mt-0.5" style={{ color: t.textMuted }}>Qty: {item.quantity} × {formatPrice(item.unit_price)}</div>
                 </div>
-                <div className="font-semibold text-sm" style={{ color: t.text }}>৳{Number(item.line_total).toFixed(2)}</div>
+                <div className="font-semibold text-sm" style={{ color: t.text }}>{formatPrice(item.line_total)}</div>
               </div>
             ))}
           </div>
           <div className="mt-4 pt-4 space-y-2" style={{ borderTop: `1px solid ${t.border}` }}>
             <div className="flex justify-between text-sm">
               <span style={{ color: t.textMuted }}>Subtotal</span>
-              <span style={{ color: t.text }}>৳{Number(orderDetail.subtotal).toFixed(2)}</span>
+              <span style={{ color: t.text }}>{formatPrice(orderDetail.subtotal)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span style={{ color: t.textMuted }}>Shipping</span>
@@ -406,7 +406,7 @@ function OrdersTab({ t, orders, shopSlug, selectedOrder, orderDetail, detailLoad
             </div>
             <div className="flex justify-between text-base font-bold pt-2" style={{ borderTop: `1px solid ${t.border}` }}>
               <span style={{ color: t.text }}>Total</span>
-              <span style={{ color: t.primary }}>৳{Number(orderDetail.total_amount).toLocaleString()}</span>
+              <span style={{ color: t.primary }}>{formatPrice(orderDetail.total_amount)}</span>
             </div>
           </div>
         </Card>
@@ -471,7 +471,7 @@ function OrdersTab({ t, orders, shopSlug, selectedOrder, orderDetail, detailLoad
               </div>
               <div className="flex items-center gap-4">
                 <StatusBadge status={order.status} />
-                <span className="font-bold" style={{ color: t.primary }}>৳{Number(order.total_amount).toLocaleString()}</span>
+                <span className="font-bold" style={{ color: t.primary }}>{formatPrice(order.total_amount)}</span>
                 <svg className="w-4 h-4" style={{ color: t.textMuted }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>

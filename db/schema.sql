@@ -265,6 +265,11 @@ CREATE TABLE IF NOT EXISTS website_settings (
   store_policies  JSONB NOT NULL DEFAULT '{}',
   announcement    JSONB NOT NULL DEFAULT '{}',
   trust_badges    JSONB NOT NULL DEFAULT '[]',
+  currency_config JSONB NOT NULL DEFAULT '{"symbol":"৳","code":"BDT","position":"before","decimals":2}',
+  store_config    JSONB NOT NULL DEFAULT '{}',
+  analytics       JSONB NOT NULL DEFAULT '{}',
+  popup_config    JSONB NOT NULL DEFAULT '{}',
+  countdown       JSONB NOT NULL DEFAULT '{}',
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
