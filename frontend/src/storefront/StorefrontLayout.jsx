@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet, Link, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useStore } from '../contexts/StoreContext';
 import { useCart } from '../contexts/CartContext';
 import { resolveTokens, tokensToCssVars } from './templates';
@@ -8,6 +8,7 @@ export default function StorefrontLayout() {
   const { shop, theme, tokens, nav, footer, customCss, customJs, seoDefaults, socialLinks, businessInfo, announcement, storePolicies, loading, error, shopSlug } = useStore();
   const { count } = useCart();
   const navigate = useNavigate();
+  const location = useLocation();
   const [customerToken, setCustomerToken] = useState(null);
 
   useEffect(() => {
@@ -178,23 +179,12 @@ export default function StorefrontLayout() {
             </div>
           </div>
 
-          {/* Mobile nav */}
-          <nav className="flex md:hidden items-center gap-4 pb-3 overflow-x-auto">
-            {navLinks.map((link) => (
-              <Link
-                key={link.to}
-                to={link.to}
-                className="text-sm font-medium whitespace-nowrap hover:opacity-70 transition"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
+          {/* Mobile nav links hidden — replaced by bottom navigation bar */}
         </div>
       </header>
 
-      {/* Main content */}
-      <main className="flex-1">
+      {/* Main content — extra bottom padding on mobile for the bottom nav */}
+      <main className="flex-1 pb-20 md:pb-0">
         <Outlet />
       </main>
 
@@ -261,13 +251,98 @@ export default function StorefrontLayout() {
         </div>
       </footer>
 
-      {/* WhatsApp Floating Button */}
+      {/* ── Mobile Bottom Navigation ── */}
+      {(() => {
+        const basePath = `/store/${shopSlug}`;
+        const path = location.pathname;
+        const isActive = (p) => {
+          if (p === basePath) return path === basePath || path === basePath + '/';
+          return path.startsWith(p);
+        };
+        const bottomTabs = [
+          {
+            label: 'Home',
+            to: basePath,
+            icon: (
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+              </svg>
+            ),
+          },
+          {
+            label: 'Products',
+            to: `${basePath}/products`,
+            icon: (
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+              </svg>
+            ),
+          },
+          {
+            label: 'Cart',
+            to: `${basePath}/cart`,
+            icon: (
+              <div className="relative">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
+                </svg>
+                {count > 0 && (
+                  <span className="absolute -top-2 -right-2 w-4.5 h-4.5 flex items-center justify-center text-[10px] font-bold rounded-full"
+                    style={{ backgroundColor: resolved.accent || resolved.primary, color: resolved.bg, minWidth: '18px', height: '18px' }}>
+                    {count}
+                  </span>
+                )}
+              </div>
+            ),
+          },
+          {
+            label: customerToken ? 'Account' : 'Sign In',
+            to: customerToken ? `${basePath}/account` : `${basePath}/auth/login`,
+            icon: (
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            ),
+          },
+        ];
+
+        return (
+          <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden"
+            style={{
+              backgroundColor: resolved.headerBg,
+              borderTop: `1px solid ${resolved.border}`,
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+            }}>
+            <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
+              {bottomTabs.map((tab) => {
+                const active = isActive(tab.to);
+                return (
+                  <Link key={tab.to} to={tab.to}
+                    className="flex flex-col items-center justify-center flex-1 py-1 transition-all"
+                    style={{ color: active ? resolved.primary : resolved.textMuted }}>
+                    <div className={`p-1 rounded-xl transition-all ${active ? 'scale-110' : ''}`}
+                      style={active ? { backgroundColor: `${resolved.primary}12` } : {}}>
+                      {tab.icon}
+                    </div>
+                    <span className="text-[10px] font-semibold mt-0.5 leading-tight">{tab.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+            {/* Safe area for notched phones */}
+            <div className="h-safe-area" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }} />
+          </nav>
+        );
+      })()}
+
+      {/* WhatsApp Floating Button — positioned above bottom nav on mobile */}
       {(businessInfo.whatsapp || socialLinks.whatsapp) && (
         <a
           href={`https://wa.me/${(businessInfo.whatsapp || socialLinks.whatsapp).replace(/[^0-9]/g, '')}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="fixed bottom-6 right-6 z-50 w-14 h-14 flex items-center justify-center rounded-full shadow-lg text-2xl transition-transform hover:scale-110"
+          className="fixed bottom-24 md:bottom-6 right-4 md:right-6 z-50 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full shadow-lg text-xl md:text-2xl transition-transform hover:scale-110"
           style={{ backgroundColor: '#25D366', color: '#fff' }}
           title="Chat on WhatsApp"
         >
