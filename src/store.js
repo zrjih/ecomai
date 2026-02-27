@@ -1,8 +1,8 @@
 const crypto = require('crypto');
 
 const shops = [
-  { id: 'shop_1', name: 'Demo Coffee', slug: 'demo-coffee', status: 'active' },
-  { id: 'shop_2', name: 'Demo Fashion', slug: 'demo-fashion', status: 'active' },
+  { id: 'shop_1', name: 'Demo Coffee' },
+  { id: 'shop_2', name: 'Demo Fashion' },
 ];
 
 const users = [
@@ -11,29 +11,10 @@ const users = [
   { id: 'user_shop_user', email: 'staff@coffee.dev', password: 'password123', role: 'shop_user', shopId: 'shop_1' },
 ];
 
-const refreshTokens = [];
 const products = [];
-const customers = [];
-const orders = [];
-const orderItems = [];
-const deliveryRequests = [];
-const marketingCampaigns = [];
-const websiteSettings = [];
 
 function createId(prefix) {
   return `${prefix}_${crypto.randomUUID()}`;
 }
 
-module.exports = {
-  shops,
-  users,
-  refreshTokens,
-  products,
-  customers,
-  orders,
-  orderItems,
-  deliveryRequests,
-  marketingCampaigns,
-  websiteSettings,
-  createId,
-};
+module.exports = { shops, users, products, createId };
