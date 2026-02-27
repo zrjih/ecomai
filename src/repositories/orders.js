@@ -12,6 +12,7 @@ function createOrder({ shop_id, customer_email, status, subtotal, tax_amount, sh
     discount_amount,
     total_amount,
     created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   };
 
   orders.push(order);
