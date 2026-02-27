@@ -19,16 +19,6 @@ CREATE TABLE IF NOT EXISTS users (
     CHECK ((role = 'super_admin' AND shop_id IS NULL) OR (role <> 'super_admin' AND shop_id IS NOT NULL))
 );
 
-CREATE TABLE IF NOT EXISTS customers (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  shop_id UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
-  email VARCHAR(255) NOT NULL,
-  full_name VARCHAR(160),
-  phone VARCHAR(40),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(shop_id, email)
-);
-
 CREATE TABLE IF NOT EXISTS products (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   shop_id UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
@@ -65,22 +55,7 @@ CREATE TABLE IF NOT EXISTS order_items (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS delivery_requests (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  shop_id UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
-  order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-  provider VARCHAR(40) NOT NULL DEFAULT 'internal',
-  status VARCHAR(30) NOT NULL DEFAULT 'requested',
-  pickup_address JSONB NOT NULL,
-  dropoff_address JSONB NOT NULL,
-  delivered_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(shop_id, order_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_customers_shop_id ON customers(shop_id);
 CREATE INDEX IF NOT EXISTS idx_products_shop_id ON products(shop_id);
 CREATE INDEX IF NOT EXISTS idx_orders_shop_id ON orders(shop_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_shop_order ON order_items(shop_id, order_id);
-CREATE INDEX IF NOT EXISTS idx_delivery_requests_shop_id ON delivery_requests(shop_id);
+CREATE INDEX IF NOT EXISTS idx_products_shop_id ON products(shop_id);
