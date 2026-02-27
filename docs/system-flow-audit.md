@@ -95,6 +95,149 @@ The user's agenda: **Build a complete SaaS e-commerce platform** where:
 | Security | Helmet, express-rate-limit (300/15min API, 20/15min auth) |
 | Container | Docker Compose with health checks |
 
+### Backend Layer Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                          Express.js Application                         │
+│                                                                          │
+│  ┌─────────────────────────── Middleware Chain ────────────────────────┐  │
+│  │                                                                     │  │
+│  │   Helmet ──► CORS ──► Rate Limiter ──► JSON Parser ──► URL Parser   │  │
+│  │                                                                     │  │
+│  └──────────────────────────────┬──────────────────────────────────────┘  │
+│                                 │                                         │
+│  ┌──────────────────────────────▼──────────────────────────────────────┐  │
+│  │                         Route Layer (/v1)                           │  │
+│  │                                                                     │  │
+│  │   /register   /auth   /public   /products   /orders   /payments     │  │
+│  │   /shops   /users   /customers   /delivery-requests   /driver       │  │
+│  │   /marketing-campaigns   /inventory-movements   /website-settings   │  │
+│  │   /product-variants                                                 │  │
+│  └──────────────────────────────┬──────────────────────────────────────┘  │
+│                                 │                                         │
+│  ┌──────────────────────────────▼──────────────────────────────────────┐  │
+│  │                       Auth Middleware (per route)                    │  │
+│  │                                                                     │  │
+│  │   authRequired ──► requireRoles ──► resolveTenant ──► tenantContext  │  │
+│  │          │                                   │                       │  │
+│  │    JWT verify              super_admin: x-shop-id header             │  │
+│  │    (HS256)                 others: JWT payload.shop_id               │  │
+│  └──────────────────────────────┬──────────────────────────────────────┘  │
+│                                 │                                         │
+│  ┌──────────────────────────────▼──────────────────────────────────────┐  │
+│  │                        Service Layer                                │  │
+│  │                                                                     │  │
+│  │   auth · products · orders · payments · customers · delivery        │  │
+│  │   marketing-campaigns · website-settings · shops · users            │  │
+│  │   product-variants · inventory-movements                            │  │
+│  │                                                                     │  │
+│  │   Business logic, validation, DomainError throwing                  │  │
+│  └──────────────────────────────┬──────────────────────────────────────┘  │
+│                                 │                                         │
+│  ┌──────────────────────────────▼──────────────────────────────────────┐  │
+│  │                      Repository Layer                               │  │
+│  │                                                                     │  │
+│  │   Parameterized SQL queries ($1, $2...) via pg.Pool                 │  │
+│  │   db.query() for single ops  ·  db.withTransaction() for TX ops    │  │
+│  │   Every query includes WHERE shop_id = $N (multi-tenant)            │  │
+│  └──────────────────────────────┬──────────────────────────────────────┘  │
+│                                 │                                         │
+│                    ┌────────────▼────────────┐                            │
+│                    │    PostgreSQL 16         │                            │
+│                    │    16 tables · UUIDs     │                            │
+│                    │    JSONB · CHECK · FK    │                            │
+│                    └─────────────────────────┘                            │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+### Multi-Tenant Request Isolation
+
+```
+  Shop A (slug: demo-coffee)              Shop B (slug: fashion-hub)
+  ────────────────────────               ────────────────────────
+
+  Admin User (JWT)                        Admin User (JWT)
+  ┌─────────────────────┐                 ┌─────────────────────┐
+  │ sub: uuid-A1        │                 │ sub: uuid-B1        │
+  │ role: shop_admin    │                 │ role: shop_admin    │
+  │ shop_id: uuid-A     │                 │ shop_id: uuid-B     │
+  └──────────┬──────────┘                 └──────────┬──────────┘
+             │                                       │
+             ▼                                       ▼
+  ┌──────────────────────┐                ┌──────────────────────┐
+  │ resolveTenant()      │                │ resolveTenant()      │
+  │ req.tenantShopId =   │                │ req.tenantShopId =   │
+  │   jwt.shop_id        │                │   jwt.shop_id        │
+  │   = uuid-A           │                │   = uuid-B           │
+  └──────────┬───────────┘                └──────────┬───────────┘
+             │                                       │
+             ▼                                       ▼
+  ┌──────────────────────┐                ┌──────────────────────┐
+  │ SELECT * FROM        │                │ SELECT * FROM        │
+  │   products           │                │   products           │
+  │ WHERE shop_id =      │                │ WHERE shop_id =      │
+  │   'uuid-A'           │                │   'uuid-B'           │
+  └──────────────────────┘                └──────────────────────┘
+  Returns: Coffee Beans,                  Returns: T-Shirts,
+  Espresso, Latte...                      Jeans, Sneakers...
+
+  ★ Zero cross-tenant data leakage — every query scoped by shop_id
+```
+
+### Frontend Route Map
+
+```
+  React Router v7 — App.jsx
+  ════════════════════════════════════════════════════════════════════
+
+  /                          → Landing.jsx          (public)
+  /pricing                   → Pricing.jsx          (public, fetches plans)
+  /signup                    → Signup.jsx           (public, ?plan= param)
+  /login                     → Login.jsx            (public)
+  │
+  /store/:shopSlug/*         → StorefrontWrapper     (CartProvider)
+  │   /                      → StoreHome.jsx        (shop info + products)
+  │   /products              → StoreProducts.jsx    (product catalog)
+  │   /products/:slug        → StoreProductDetail   (detail + variants)
+  │   /cart                  → StoreCart.jsx         (client-side cart)
+  │   /checkout              → StoreCheckout.jsx    (→ SSLCommerz redirect)
+  │
+  /admin/*                   → ProtectedRoute → Layout
+      /                      → Dashboard.jsx        (overview stats)
+      /products              → Products.jsx         (CRUD table)
+      /products/:id          → ProductDetail.jsx    (edit + variants)
+      /orders                → Orders.jsx           (order list + status)
+      /orders/:id            → OrderDetail.jsx      (items, payments, delivery)
+      /customers             → Customers.jsx        (customer list)
+      /payments              → Payments.jsx         (payment + refund)
+      /delivery              → Delivery.jsx         (delivery tracking)
+      /campaigns             → Campaigns.jsx        (marketing campaigns)
+      /website               → WebsiteSettings.jsx  (theme customizer)
+      /settings              → ShopSettings.jsx     (shop config)
+      /users                 → Users.jsx            (staff management)
+```
+
+### Role-Based Access Matrix
+
+```
+  Endpoint Group          super_admin   shop_admin   shop_user   delivery_agent   customer
+  ─────────────────────   ───────────   ──────────   ─────────   ──────────────   ────────
+  /v1/shops (all)              ✓
+  /v1/shops/me                 ✓             ✓            ✓
+  /v1/products                 ✓             ✓            ✓
+  /v1/orders                   ✓             ✓            ✓
+  /v1/payments                 ✓             ✓            ✓
+  /v1/customers                ✓             ✓            ✓
+  /v1/delivery-requests        ✓             ✓            ✓
+  /v1/marketing-campaigns      ✓             ✓            ✓
+  /v1/inventory-movements      ✓             ✓            ✓
+  /v1/website-settings         ✓             ✓            ✓
+  /v1/users                    ✓             ✓
+  /v1/driver/*                                                       ✓
+  /v1/public/*/account/*                                                             ✓
+```
+
 ---
 
 ## 3. Complete User Flows — Click-by-Click
@@ -104,6 +247,59 @@ Each flow below traces: **User Click → Frontend Action → API Call → Backen
 ---
 
 ### Flow A: New Visitor → Signup → Admin Dashboard
+
+```
+  Signup Sequence — Full Transaction Flow
+  ═══════════════════════════════════════════════════════════════════════════
+
+  Browser                  Frontend (React)           Backend (Express)              PostgreSQL
+  ───────                  ────────────────           ─────────────────              ──────────
+    │                           │                           │                           │
+    │──── visit / ─────────────►│                           │                           │
+    │◄─── Landing.jsx ─────────│                           │                           │
+    │                           │                           │                           │
+    │── click "Pricing" ──────►│                           │                           │
+    │                           │── GET /v1/register/plans─►│                           │
+    │                           │                           │── SELECT subscription ────►│
+    │                           │                           │   _plans ORDER BY price    │
+    │                           │                           │◄── 4 plan rows ───────────│
+    │                           │◄── {items: [...plans]} ──│                           │
+    │◄─── Pricing grid ────────│                           │                           │
+    │                           │                           │                           │
+    │── click "Get Started" ──►│ (plan=growth in URL)      │                           │
+    │◄─── Signup.jsx ──────────│                           │                           │
+    │                           │                           │                           │
+    │── fill form & submit ───►│                           │                           │
+    │                           │── POST /v1/register ─────►│                           │
+    │                           │   {shop_name, slug,       │                           │
+    │                           │    email, password,       │── SELECT users ───────────►│
+    │                           │    full_name, plan}       │   WHERE email=$1           │
+    │                           │                           │◄── 0 rows (not taken) ────│
+    │                           │                           │                           │
+    │                           │                           │── bcrypt.hash(pw, 10) ────│
+    │                           │                           │                           │
+    │                           │                           │══ BEGIN TRANSACTION ══════│
+    │                           │                           │── INSERT shops ───────────►│
+    │                           │                           │◄── {id: shop_uuid} ───────│
+    │                           │                           │── INSERT users ───────────►│
+    │                           │                           │◄── {id: user_uuid} ───────│
+    │                           │                           │── UPDATE shops SET ────────►│
+    │                           │                           │   owner_user_id             │
+    │                           │                           │── INSERT website_settings ─►│
+    │                           │                           │══ COMMIT ═════════════════│
+    │                           │                           │                           │
+    │                           │                           │── jwt.sign(access, 15m) ──│
+    │                           │                           │── jwt.sign(refresh, 7d) ──│
+    │                           │                           │── INSERT refresh_tokens ──►│
+    │                           │                           │                           │
+    │                           │◄── 201 {shop, user, ─────│                           │
+    │                           │     accessToken,          │                           │
+    │                           │     refreshToken}         │                           │
+    │                           │                           │                           │
+    │                           │── localStorage.set() ────│                           │
+    │                           │── navigate('/admin') ────│                           │
+    │◄─── Admin Dashboard ─────│                           │                           │
+```
 
 #### Step 1 — User visits `http://localhost:5173`
 
@@ -163,6 +359,59 @@ Each flow below traces: **User Click → Frontend Action → API Call → Backen
 ---
 
 ### Flow B: Admin Login → Session Lifecycle
+
+```
+  JWT Token Lifecycle — Login → Refresh → Logout
+  ═══════════════════════════════════════════════════════════════════════════
+
+  ┌───── LOGIN ──────────────────────────────────────────────────────────┐
+  │                                                                      │
+  │  Client                    Backend                   Database        │
+  │    │                         │                          │            │
+  │    │── POST /auth/login ────►│                          │            │
+  │    │   {email, password}     │── findByEmail ──────────►│            │
+  │    │                         │◄── user row ────────────│            │
+  │    │                         │── bcrypt.compare() ─────│            │
+  │    │                         │── sign accessToken ──── (15 min TTL) │
+  │    │                         │── sign refreshToken ─── (7 day TTL)  │
+  │    │                         │── INSERT refresh_tokens─►│            │
+  │    │◄── {accessToken, ──────│                          │            │
+  │    │     refreshToken}      │                          │            │
+  │    │── store localStorage ──│                          │            │
+  │                                                                      │
+  └──────────────────────────────────────────────────────────────────────┘
+
+       │ ... 15 minutes pass ... access token expires
+       ▼
+  ┌───── REFRESH (Token Rotation) ──────────────────────────────────────┐
+  │                                                                      │
+  │    │── POST /auth/refresh ──►│                          │            │
+  │    │   {refreshToken}        │── SELECT WHERE token=$1 ►│            │
+  │    │                         │◄── found ───────────────│            │
+  │    │                         │── jwt.verify() ─────────│            │
+  │    │                         │   (check token_type)     │            │
+  │    │                         │── SELECT user ──────────►│            │
+  │    │                         │── DELETE old token ─────►│  ← rotate  │
+  │    │                         │── sign NEW access ──────│            │
+  │    │                         │── sign NEW refresh ─────│            │
+  │    │                         │── INSERT new token ─────►│            │
+  │    │◄── {NEW accessToken, ──│                          │            │
+  │    │     NEW refreshToken}  │                          │            │
+  │                                                                      │
+  └──────────────────────────────────────────────────────────────────────┘
+
+       │ ... user clicks logout
+       ▼
+  ┌───── LOGOUT ────────────────────────────────────────────────────────┐
+  │                                                                      │
+  │    │── POST /auth/logout ───►│                          │            │
+  │    │   {refreshToken}        │── DELETE WHERE token=$1 ►│            │
+  │    │◄── 200 OK ─────────────│                          │            │
+  │    │── clear localStorage ──│                          │            │
+  │    │── redirect /login ─────│                          │            │
+  │                                                                      │
+  └──────────────────────────────────────────────────────────────────────┘
+```
 
 #### Step 1 — Login
 
@@ -260,6 +509,73 @@ Each flow below traces: **User Click → Frontend Action → API Call → Backen
 
 ### Flow D: Admin — Order Management
 
+```
+  Order Status Lifecycle — State Machine
+  ═══════════════════════════════════════════════════════════════════════════
+
+                    ┌─────────────────────────────────────────────┐
+                    │                                             │
+                    ▼                                             │
+              ┌──────────┐     ┌───────────┐     ┌────────────┐  │
+  (create) ──►│ PENDING  │────►│ CONFIRMED │────►│ PROCESSING │  │
+              └──────────┘     └───────────┘     └─────┬──────┘  │
+                    │                                   │         │
+                    │                                   ▼         │
+                    │                            ┌──────────┐    │
+                    │                            │ SHIPPED  │    │
+                    │                            └─────┬────┘    │
+                    │                                   │         │
+                    │                                   ▼         │
+                    │                            ┌───────────┐   │
+                    │                            │ DELIVERED │   │
+                    │                            └───────────┘   │
+                    │                                             │
+                    │         ┌────────────┐                     │
+                    └────────►│ CANCELLED  │◄────────────────────┘
+                              └────────────┘
+
+  Payment Status:  unpaid ──────────────────► paid
+                              (on SSLCommerz success
+                               or manual payment)
+
+  DB Changes Per Status Update:
+    UPDATE orders SET status = $1, updated_at = now()
+    WHERE id = $2 AND shop_id = $3
+```
+
+```
+  Order Creation — Transaction Breakdown (with Inventory)
+  ═══════════════════════════════════════════════════════════════════════════
+
+  BEGIN TRANSACTION
+  │
+  │  ┌─── For each item in cart ───────────────────────────────────────┐
+  │  │                                                                  │
+  │  │  1. SELECT product/variant → resolve unit_price                  │
+  │  │  2. Calculate: line_total = quantity × unit_price                 │
+  │  │                                                                  │
+  │  └──────────────────────────────────────────────────────────────────┘
+  │
+  │  3. Calculate: subtotal = Σ(line_totals), total = subtotal + tax + shipping - discount
+  │
+  │  4. INSERT INTO orders (...) → status='pending', payment_status='unpaid'
+  │
+  │  ┌─── For each resolved item ──────────────────────────────────────┐
+  │  │                                                                  │
+  │  │  5a. INSERT INTO order_items (shop_id, order_id, product_id,     │
+  │  │      variant_id, item_name, quantity, unit_price, line_total)    │
+  │  │                                                                  │
+  │  │  5b. UPDATE product_variants SET inventory_qty =                  │
+  │  │      inventory_qty - quantity WHERE id = variant_id              │
+  │  │                                                                  │
+  │  │  5c. INSERT INTO inventory_movements (shop_id, variant_id,       │
+  │  │      product_id, type='sale', quantity=-N, reason, reference_id) │
+  │  │                                                                  │
+  │  └──────────────────────────────────────────────────────────────────┘
+  │
+  COMMIT
+```
+
 #### Create Order (Admin-side)
 
 | | Detail |
@@ -326,6 +642,34 @@ Each flow below traces: **User Click → Frontend Action → API Call → Backen
 
 ### Flow F: Admin — Delivery & Driver Assignment
 
+```
+  Delivery Status Lifecycle — State Machine
+  ═══════════════════════════════════════════════════════════════════════════
+
+                                                  Driver Actions
+                                                  ─────────────
+  ┌──────────┐     ┌──────────┐     ┌───────────┐     ┌────────────┐     ┌───────────┐
+  │ PENDING  │────►│ ASSIGNED │────►│ PICKED_UP │────►│ IN_TRANSIT │────►│ DELIVERED │
+  └──────────┘     └──────────┘     └───────────┘     └────────────┘     └───────────┘
+       │                │                │                  │
+  (admin creates)  (admin assigns   (driver marks     (driver posts
+                    driver_user_id)  pickup)           GPS via JSONB)
+       │                │                │                  │
+       └────────────────┴────────────────┴──────────────────┘
+                                    │
+                              ┌───────────┐
+                              │ CANCELLED │
+                              └───────────┘
+
+  GPS Tracking (location_updates JSONB array):
+  ┌─────────────────────────────────────────────────────────────────┐
+  │ [{"lat":23.81,"lng":90.41,"updated_at":"...T10:30:00Z"},       │
+  │  {"lat":23.82,"lng":90.42,"updated_at":"...T10:35:00Z"},       │
+  │  {"lat":23.83,"lng":90.43,"updated_at":"...T10:40:00Z"}]       │
+  └─────────────────────────────────────────────────────────────────┘
+  Driver POSTs {lat, lng} → appended to array → UPDATE delivery_requests
+```
+
 #### Create Delivery Request
 
 | | Detail |
@@ -353,6 +697,35 @@ Each flow below traces: **User Click → Frontend Action → API Call → Backen
 ---
 
 ### Flow G: Admin — Marketing Campaign
+
+```
+  Campaign Lifecycle — State Machine
+  ═══════════════════════════════════════════════════════════════════════════
+
+  ┌─────────┐     ┌──────────┐     ┌───────────┐     ┌───────────┐
+  │  DRAFT  │────►│ SCHEDULED│────►│  ACTIVE   │────►│ COMPLETED │
+  └─────────┘     └──────────┘     └───────────┘     └───────────┘
+       │               │                │                   │
+  (admin creates  (set scheduled_at  (sending/running   (campaign
+   with content)   future date)       campaign)         finished)
+       │
+       └──────────────────────────────►│
+             (can go directly active)
+       │
+       └─────────────┐
+                     ▼
+              ┌───────────┐
+              │  PAUSED   │
+              └───────────┘
+
+  Supported Channel Types:
+  ┌──────────┬──────────┬──────────┬───────────┬────────┬────────────┐
+  │  email   │   sms    │ facebook │ instagram │ tiktok │ google_ads │
+  └──────────┴──────────┴──────────┴───────────┴────────┴────────────┘
+
+  Content (JSONB):  {subject, body, template_id, ...}
+  Audience (JSONB): {segment, tags, filters, ...}
+```
 
 #### Create Campaign
 
@@ -581,6 +954,99 @@ Each flow below traces: **User Click → Frontend Action → API Call → Backen
 
 ### Flow M: SSLCommerz Payment Callback Lifecycle
 
+```
+  SSLCommerz Full Checkout & Callback Sequence
+  ═══════════════════════════════════════════════════════════════════════════
+
+  Customer         Frontend         Backend          SSLCommerz API       PostgreSQL
+  ────────         ────────         ───────          ──────────────       ──────────
+    │                 │                │                   │                  │
+    │── Place Order ─►│                │                   │                  │
+    │                 │── POST /checkout──►│                │                  │
+    │                 │                │                   │                  │
+    │                 │                │══ BEGIN TX ════════════════════════►│
+    │                 │                │── INSERT orders ──────────────────►│
+    │                 │                │── INSERT order_items (×N) ────────►│
+    │                 │                │── UPDATE variant inventory (×N) ──►│
+    │                 │                │── INSERT inventory_movements (×N) ►│
+    │                 │                │══ COMMIT ═════════════════════════│
+    │                 │                │                   │                  │
+    │                 │                │── INSERT payments ────────────────►│
+    │                 │                │   (status='pending', method=        │
+    │                 │                │    'sslcommerz', gateway_tran_id)   │
+    │                 │                │                   │                  │
+    │                 │                │── sslcz.init() ──►│                  │
+    │                 │                │   {total_amount,   │                  │
+    │                 │                │    tran_id,        │                  │
+    │                 │                │    success_url,    │                  │
+    │                 │                │    fail_url,       │                  │
+    │                 │                │    cancel_url,     │                  │
+    │                 │                │    ipn_url}        │                  │
+    │                 │                │◄─ {GatewayPageURL}│                  │
+    │                 │                │                   │                  │
+    │                 │                │── UPDATE payments ────────────────►│
+    │                 │                │   (gateway_response = SSLCommerz)   │
+    │                 │                │                   │                  │
+    │                 │◄── {gatewayUrl}│                   │                  │
+    │◄── redirect ───│                │                   │                  │
+    │                                                     │                  │
+    │──────── SSLCommerz Payment Page ───────────────────►│                  │
+    │         (bKash / Nagad / Card / Bank)                │                  │
+    │◄──────── Payment Complete ─────────────────────────│                  │
+    │                                                     │                  │
+    │                 │                │◄── POST /success ─│                  │
+    │                 │                │   {tran_id,        │                  │
+    │                 │                │    status:'VALID', │                  │
+    │                 │                │    val_id}         │                  │
+    │                 │                │                   │                  │
+    │                 │                │── SELECT payments WHERE ───────────►│
+    │                 │                │   gateway_tran_id = tran_id          │
+    │                 │                │                   │                  │
+    │                 │                │── UPDATE payments SET ─────────────►│
+    │                 │                │   status='completed'                 │
+    │                 │                │                   │                  │
+    │                 │                │── UPDATE orders SET ───────────────►│
+    │                 │                │   status='confirmed',                │
+    │                 │                │   payment_status='paid'              │
+    │                 │                │                   │                  │
+    │◄── redirect /checkout/success ──│                   │                  │
+    │                 │                │                   │                  │
+    │                 │   ┌───── IPN (server-to-server, redundant) ─────┐   │
+    │                 │   │ SSLCommerz ── POST /ipn ──► Backend          │   │
+    │                 │   │ Same logic as success, returns 200 JSON      │   │
+    │                 │   │ (idempotent: skips if already completed)     │   │
+    │                 │   └─────────────────────────────────────────────┘   │
+```
+
+```
+  Payment Method Flow Comparison
+  ═══════════════════════════════════════════════════════════════════════════
+
+  SSLCommerz (Online):                   Manual (Cash/Bank):
+  ──────────────────                     ─────────────────
+  POST /checkout                         POST /payments/manual
+    │                                      │
+    ├─ INSERT payments                     ├─ SELECT order (verify)
+    │  status='pending'                    ├─ Validate amount ≤ total
+    │  method='sslcommerz'                 ├─ INSERT payments
+    │                                      │  status='completed'
+    ├─ SSLCommerz API call                 │  method='cash'/'bank'
+    │  → redirect to gateway               │
+    │                                      └─ 201 Created
+    ├─ Customer pays
+    │
+    ├─ /success callback                 Refund (against any payment):
+    │  status='completed'                ─────────────────────────
+    │  order.payment_status='paid'       POST /payments/:id/refunds
+    │                                      │
+    ├─ /fail callback                      ├─ SELECT payment (verify)
+    │  status='failed'                     ├─ SELECT refunds (sum existing)
+    │                                      ├─ Validate: cumulative ≤ payment
+    └─ /cancel callback                    ├─ INSERT refunds
+       status='cancelled'                  │  status='pending'
+                                           └─ 201 Created
+```
+
 After the customer completes (or fails) payment on SSLCommerz's hosted page:
 
 #### Success Callback
@@ -628,6 +1094,163 @@ After the customer completes (or fails) payment on SSLCommerz's hosted page:
 ---
 
 ## 4. Database Schema — All 16 Tables
+
+### Entity-Relationship Diagram
+
+```
+  ═══════════════════════════════════════════════════════════════════════════
+  DATABASE ER DIAGRAM — 16 Tables, All Foreign Key Relationships
+  ═══════════════════════════════════════════════════════════════════════════
+
+  ┌─────────────────────────┐
+  │   subscription_plans    │
+  │─────────────────────────│
+  │ id (PK)                 │
+  │ name, slug              │
+  │ price_monthly           │
+  │ features (JSONB)        │
+  └────────────┬────────────┘
+               │ referenced by
+               ▼
+  ┌─────────────────────────┐         ┌──────────────────────────┐
+  │         shops           │────────►│    website_settings      │
+  │─────────────────────────│  1:1    │──────────────────────────│
+  │ id (PK)                 │         │ id (PK)                  │
+  │ name, slug (UNIQUE)     │         │ shop_id (FK, UNIQUE)     │
+  │ status                  │         │ template                 │
+  │ industry                │         │ theme (JSONB)            │
+  │ subscription_plan       │         │ header (JSONB)           │
+  │ owner_user_id (FK) ─┐   │         │ footer (JSONB)           │
+  │ sslcommerz_store_id │   │         │ homepage (JSONB)         │
+  │ sslcommerz_store_pass│  │         │ custom_css, custom_js    │
+  │ logo_url             │  │         │ seo_defaults (JSONB)     │
+  └──┬───┬───┬───┬───┬───┘  │         └──────────────────────────┘
+     │   │   │   │   │      │
+     │   │   │   │   │      │  (deferred FK)
+     │   │   │   │   │      │
+     │   │   │   │   ▼      │
+     │   │   │   │  ┌───────┴────────────────┐       ┌──────────────────────┐
+     │   │   │   │  │        users           │──────►│   refresh_tokens     │
+     │   │   │   │  │────────────────────────│  1:N  │──────────────────────│
+     │   │   │   │  │ id (PK)                │       │ id (PK)              │
+     │   │   │   │  │ shop_id (FK)           │       │ user_id (FK CASCADE) │
+     │   │   │   │  │ email, password_hash    │       │ token (UNIQUE)       │
+     │   │   │   │  │ role (CHECK: 4 values)  │       │ expires_at           │
+     │   │   │   │  │ full_name, phone        │       └──────────────────────┘
+     │   │   │   │  └────────────┬────────────┘
+     │   │   │   │              │ assigned_driver_user_id
+     │   │   │   │              ▼
+     │   │   │   │  ┌────────────────────────┐
+     │   │   │   │  │   delivery_requests    │
+     │   │   │   │  │────────────────────────│
+     │   │   │   │  │ id (PK)                │
+     │   │   │   │  │ shop_id (FK)           │
+     │   │   │   │  │ order_id (FK)      ◄───┼───┐
+     │   │   │   │  │ assigned_driver_user_id│   │
+     │   │   │   │  │ provider, status       │   │
+     │   │   │   │  │ pickup_address (JSONB) │   │
+     │   │   │   │  │ dropoff_address (JSONB)│   │
+     │   │   │   │  │ location_updates (JSONB│   │
+     │   │   │   │  │ estimated_delivery     │   │
+     │   │   │   │  └────────────────────────┘   │
+     │   │   │   │                               │
+     │   │   │   ▼                               │
+     │   │   │  ┌────────────────────────┐       │
+     │   │   │  │  marketing_campaigns   │       │
+     │   │   │  │────────────────────────│       │
+     │   │   │  │ id (PK)                │       │
+     │   │   │  │ shop_id (FK)           │       │
+     │   │   │  │ name, type (CHECK)     │       │
+     │   │   │  │ subject                │       │
+     │   │   │  │ content (JSONB)        │       │
+     │   │   │  │ audience_filter (JSONB)│       │
+     │   │   │  │ status, scheduled_at   │       │
+     │   │   │  │ performance (JSONB)    │       │
+     │   │   │  └────────────────────────┘       │
+     │   │   │                                   │
+     │   │   ▼                                   │
+     │   │  ┌────────────────────────┐           │
+     │   │  │      customers         │           │
+     │   │  │────────────────────────│           │
+     │   │  │ id (PK)                │           │
+     │   │  │ shop_id (FK)           │           │
+     │   │  │ email, password_hash   │           │
+     │   │  │ full_name, phone       │           │
+     │   │  │ is_registered          │           │
+     │   │  │ addresses (JSONB)      │           │
+     │   │  │ UNIQUE(shop_id, email) │           │
+     │   │  └───────────┬────────────┘           │
+     │   │              │ customer_id            │
+     │   ▼              ▼                        │
+     │  ┌──────────────────────────┐             │
+     │  │        products          │             │
+     │  │──────────────────────────│             │
+     │  │ id (PK)                  │             │
+     │  │ shop_id (FK)             │             │
+     │  │ name, slug               │             │
+     │  │ base_price, description  │             │
+     │  │ category, status         │      ┌──────┴────────────────────┐
+     │  │ image_url, stock_quantity│      │         orders            │
+     │  │ UNIQUE(shop_id, slug)    │      │──────────────────────────│
+     │  └──────────┬───────────────┘      │ id (PK)                  │
+     │             │                      │ shop_id (FK)             │
+     │             │ 1:N                  │ customer_id (FK)         │
+     │             ▼                      │ customer_email           │
+     │  ┌──────────────────────────┐      │ status (CHECK: 6 values) │
+     │  │    product_variants      │      │ payment_status           │
+     │  │──────────────────────────│      │ subtotal, tax_amount     │
+     │  │ id (PK)                  │      │ shipping_amount          │
+     │  │ shop_id (FK)             │      │ discount_amount          │
+     │  │ product_id (FK CASCADE)  │      │ total_amount             │
+     │  │ sku, title               │      │ shipping_address (JSONB) │
+     │  │ attributes (JSONB)       │      └──────┬──────┬────────────┘
+     │  │ price, inventory_qty     │             │      │
+     │  └──────────┬───────────────┘             │      │
+     │             │                             │      │
+     │             │    ┌────────────────────────┘      │
+     │             │    │                               │
+     │             ▼    ▼                               ▼
+     │  ┌──────────────────────────┐      ┌──────────────────────────┐
+     │  │    order_items           │      │       payments           │
+     │  │──────────────────────────│      │──────────────────────────│
+     │  │ id (PK)                  │      │ id (PK)                  │
+     │  │ shop_id (FK)             │      │ shop_id (FK)             │
+     │  │ order_id (FK CASCADE)    │      │ order_id (FK)            │
+     │  │ product_id (FK)          │      │ amount, currency         │
+     │  │ variant_id (FK)          │      │ method (CHECK)           │
+     │  │ item_name, quantity      │      │ status (CHECK)           │
+     │  │ unit_price, line_total   │      │ gateway_tran_id          │
+     │  └──────────────────────────┘      │ gateway_response (JSONB) │
+     │                                    └──────────┬───────────────┘
+     │                                               │
+     │  ┌──────────────────────────┐                 │ 1:N
+     │  │   inventory_movements    │                 ▼
+     │  │──────────────────────────│      ┌──────────────────────────┐
+     │  │ id (PK)                  │      │        refunds           │
+     │  │ shop_id (FK)             │      │──────────────────────────│
+     │  │ variant_id (FK)          │      │ id (PK)                  │
+     │  │ product_id (FK)          │      │ payment_id (FK)          │
+     │  │ type (CHECK)             │      │ shop_id (FK)             │
+     │  │ quantity (+/-)           │      │ amount, reason           │
+     │  │ reason, reference_id     │      │ status                   │
+     │  └──────────────────────────┘      │ gateway_response (JSONB) │
+     │                                    └──────────────────────────┘
+     │
+     ▼
+  ┌──────────────────────────┐
+  │       audit_log          │  (schema only — not yet wired)
+  │──────────────────────────│
+  │ id (PK)                  │
+  │ shop_id (FK)             │
+  │ user_id (FK)             │
+  │ action, entity_type      │
+  │ entity_id                │
+  │ meta (JSONB)             │
+  │ ip_address               │
+  └──────────────────────────┘
+```
+
+### Table Summary
 
 | Table | Primary Purpose | Key Columns | Relationships |
 |---|---|---|---|
