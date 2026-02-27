@@ -58,3 +58,4 @@ CREATE TABLE IF NOT EXISTS order_items (
 CREATE INDEX IF NOT EXISTS idx_products_shop_id ON products(shop_id);
 CREATE INDEX IF NOT EXISTS idx_orders_shop_id ON orders(shop_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_shop_order ON order_items(shop_id, order_id);
+CREATE INDEX IF NOT EXISTS idx_products_shop_id ON products(shop_id);
