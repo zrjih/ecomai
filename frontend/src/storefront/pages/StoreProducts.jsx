@@ -109,14 +109,14 @@ export default function StoreProducts() {
                 }}
               >
                 <div
-                  className="aspect-square flex items-center justify-center text-6xl"
+                  className="aspect-square overflow-hidden"
                   style={{ backgroundColor: t.border + '40' }}
                 >
-                  {product.category === 'fashion' ? '👗' :
-                   product.category === 'electronics' ? '💻' :
-                   product.category === 'food_beverage' ? '☕' :
-                   product.category === 'Beverages' ? '☕' :
-                   '📦'}
+                  {product.images?.length > 0 ? (
+                    <img src={product.images.find(i => i.is_primary)?.url || product.images[0].url} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-6xl">📦</div>
+                  )}
                 </div>
                 <div className="p-4 flex flex-col flex-1">
                   <h3 className="font-semibold text-sm mb-1 group-hover:opacity-70 transition" style={{ color: t.text }}>
@@ -141,7 +141,7 @@ export default function StoreProducts() {
                   )}
                   <div className="mt-auto">
                     <p className="text-lg font-bold" style={{ color: t.primary }}>
-                      ${Number(product.base_price).toFixed(2)}
+                      ৳{Number(product.base_price).toFixed(2)}
                     </p>
                   </div>
                 </div>

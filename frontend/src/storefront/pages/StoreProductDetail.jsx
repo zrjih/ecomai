@@ -15,6 +15,8 @@ export default function StoreProductDetail() {
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
 
+  const [selectedImage, setSelectedImage] = useState(null);
+
   const t = resolveTokens(theme, tokens);
 
   useEffect(() => {
@@ -23,13 +25,19 @@ export default function StoreProductDetail() {
       .then((data) => {
         setProduct(data);
         if (data.variants?.length > 0) setSelectedVariant(data.variants[0]);
+        const primary = data.images?.find(i => i.is_primary) || data.images?.[0] || null;
+        setSelectedImage(primary);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [shopSlug, productId]);
 
+  const isOutOfStock = selectedVariant
+    ? selectedVariant.inventory_qty <= 0
+    : (product?.stock_quantity !== undefined && product?.stock_quantity <= 0);
+
   const handleAdd = () => {
-    if (!product) return;
+    if (!product || isOutOfStock) return;
     addItem(product, selectedVariant, quantity);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
@@ -68,20 +76,42 @@ export default function StoreProductDetail() {
       </nav>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-        {/* Product image */}
-        <div
-          className="aspect-square flex items-center justify-center text-8xl"
-          style={{
-            backgroundColor: t.surface,
-            borderRadius: t.radius,
-            border: `1px solid ${t.border}`,
-          }}
-        >
-          {product.category === 'fashion' ? '👗' :
-           product.category === 'electronics' ? '💻' :
-           product.category === 'food_beverage' ? '☕' :
-           product.category === 'Beverages' ? '☕' :
-           '📦'}
+        {/* Product image gallery */}
+        <div>
+          <div
+            className="aspect-square overflow-hidden mb-3"
+            style={{
+              backgroundColor: t.surface,
+              borderRadius: t.radius,
+              border: `1px solid ${t.border}`,
+            }}
+          >
+            {selectedImage ? (
+              <img src={selectedImage.url} alt={selectedImage.alt_text || product.name} className="w-full h-full object-cover" />
+            ) : product.images?.length > 0 ? (
+              <img src={product.images[0].url} alt={product.name} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-8xl">📦</div>
+            )}
+          </div>
+          {product.images?.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {product.images.map((img) => (
+                <button
+                  key={img.id}
+                  onClick={() => setSelectedImage(img)}
+                  className="w-16 h-16 shrink-0 overflow-hidden transition"
+                  style={{
+                    borderRadius: t.radius,
+                    border: selectedImage?.id === img.id ? `2px solid ${t.primary}` : `1px solid ${t.border}`,
+                    opacity: selectedImage?.id === img.id ? 1 : 0.7,
+                  }}
+                >
+                  <img src={img.url} alt={img.alt_text || ''} className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Product info */}
@@ -104,7 +134,7 @@ export default function StoreProductDetail() {
           </h1>
 
           <p className="text-3xl font-bold mb-6" style={{ color: t.primary }}>
-            ${price.toFixed(2)}
+            ৳{price.toFixed(2)}
           </p>
 
           {product.description && (
@@ -132,7 +162,7 @@ export default function StoreProductDetail() {
                       color: selectedVariant?.id === v.id ? t.primary : t.text,
                     }}
                   >
-                    {v.title} — ${Number(v.price).toFixed(2)}
+                    {v.title} — ৳{Number(v.price).toFixed(2)}
                     {v.inventory_qty <= 0 && (
                       <span className="ml-1 text-xs opacity-50">(Out of stock)</span>
                     )}
@@ -179,14 +209,17 @@ export default function StoreProductDetail() {
           {/* Add to cart */}
           <button
             onClick={handleAdd}
-            className="w-full py-3.5 text-base font-semibold transition hover:opacity-90 flex items-center justify-center gap-2"
+            disabled={isOutOfStock}
+            className="w-full py-3.5 text-base font-semibold transition hover:opacity-90 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
-              backgroundColor: added ? '#16a34a' : t.primary,
+              backgroundColor: isOutOfStock ? '#9ca3af' : added ? '#16a34a' : t.primary,
               color: t.bg,
               borderRadius: t.buttonRadius,
             }}
           >
-            {added ? (
+            {isOutOfStock ? (
+              'Out of Stock'
+            ) : added ? (
               <>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -198,7 +231,7 @@ export default function StoreProductDetail() {
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
                 </svg>
-                Add to Cart — ${(price * quantity).toFixed(2)}
+                Add to Cart — ৳{(price * quantity).toFixed(2)}
               </>
             )}
           </button>

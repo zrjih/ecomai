@@ -6,6 +6,12 @@ const { DomainError } = require('../errors/domain-error');
 const ALLOWED_ROLES = ['super_admin', 'shop_admin', 'shop_user', 'delivery_agent'];
 const SALT_ROUNDS = 10;
 
+function sanitizeUser(u) {
+  if (!u) return u;
+  const { password_hash, ...safe } = u;
+  return safe;
+}
+
 async function getMe(userId) {
   const user = await userRepo.findById(userId);
   if (!user) {
@@ -51,7 +57,8 @@ async function createUser({ actorRole, email, password, role, shopId, full_name,
 }
 
 async function listUsers(shopId, opts) {
-  return userRepo.listByShop(shopId, opts);
+  const result = await userRepo.listByShop(shopId, opts);
+  return { ...result, items: result.items.map(sanitizeUser) };
 }
 
 async function updateUser(userId, patch) {
@@ -62,7 +69,8 @@ async function updateUser(userId, patch) {
     patch.password_hash = await bcrypt.hash(patch.password, SALT_ROUNDS);
     delete patch.password;
   }
-  return userRepo.updateUser(userId, patch);
+  const updated = await userRepo.updateUser(userId, patch);
+  return sanitizeUser(updated);
 }
 
 module.exports = { getMe, createUser, listUsers, updateUser };

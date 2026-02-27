@@ -10,6 +10,7 @@ export default defineConfig({
     proxy: {
       '/v1': process.env.VITE_API_URL || 'http://localhost:3000',
       '/health': process.env.VITE_API_URL || 'http://localhost:3000',
+      '/uploads': process.env.VITE_API_URL || 'http://localhost:3000',
     },
     allowedHosts: true,
   },

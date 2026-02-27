@@ -17,7 +17,7 @@ export default function Products() {
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
   const [categoryList, setCategoryList] = useState([]);
-  const [filterCategory, setFilterCategory] = useState('');
+  // Category filtering is handled client-side via Products list page search
 
   const loadCategories = () => {
     categoriesApi.list({ status: 'active' }).then(setCategoryList).catch(() => {});
@@ -70,7 +70,7 @@ export default function Products() {
       <span className="text-sm text-gray-600">{r.category_name || r.category || <span className="text-gray-400">—</span>}</span>
     )},
     { key: 'base_price', label: 'Price', render: (r) => (
-      <span className="font-semibold text-gray-900">${Number(r.base_price).toFixed(2)}</span>
+      <span className="font-semibold text-gray-900">৳{Number(r.base_price).toFixed(2)}</span>
     )},
     { key: 'status', label: 'Status', render: (r) => statusBadge(r.status) },
     { key: 'created_at', label: 'Created', render: (r) => (
@@ -126,7 +126,7 @@ export default function Products() {
             <Input value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} placeholder="cold-brew-coffee" required />
           </FormField>
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Base Price ($)">
+            <FormField label="Base Price (৳)">
               <Input type="number" step="0.01" min="0" value={form.base_price} onChange={(e) => setForm({ ...form, base_price: e.target.value })} placeholder="12.99" required />
             </FormField>
             <FormField label="Status">

@@ -134,7 +134,7 @@ export default function Dashboard() {
                     <p className="text-xs text-gray-500">{new Date(order.created_at).toLocaleDateString()}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-semibold text-gray-900">${Number(order.total_amount).toFixed(2)}</p>
+                    <p className="text-sm font-semibold text-gray-900">৳{Number(order.total_amount).toFixed(2)}</p>
                     <Badge variant={statusVariant(order.status)} size="sm">{order.status}</Badge>
                   </div>
                 </div>
@@ -152,7 +152,7 @@ export default function Dashboard() {
                 <div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Total Revenue</span>
-                    <span className="text-xl font-bold text-emerald-600">${revenue.toFixed(2)}</span>
+                    <span className="text-xl font-bold text-emerald-600">৳{revenue.toFixed(2)}</span>
                   </div>
                   <div className="mt-2 w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                     <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, revenue > 0 ? 60 : 0)}%` }} />
@@ -160,7 +160,7 @@ export default function Dashboard() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Avg Order Value</span>
-                  <span className="text-lg font-bold text-gray-900">${avgOrder.toFixed(2)}</span>
+                  <span className="text-lg font-bold text-gray-900">৳{avgOrder.toFixed(2)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Active Campaigns</span>

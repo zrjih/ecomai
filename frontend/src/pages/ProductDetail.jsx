@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { products, variants, categories as categoriesApi } from '../api';
+import { products, productImages, variants, categories as categoriesApi } from '../api';
 import { PageHeader, Card, Button, Badge, Modal, FormField, Input, Select, Textarea, Table, ConfirmDialog, PageSkeleton, useToast } from '../components/UI';
 
 export default function ProductDetail() {
@@ -19,12 +19,15 @@ export default function ProductDetail() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmDeleteVariant, setConfirmDeleteVariant] = useState(null);
   const [categoryList, setCategoryList] = useState([]);
+  const [images, setImages] = useState([]);
+  const [uploading, setUploading] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
       const p = await products.get(id);
       setProduct(p);
+      setImages(p.images || []);
       setForm({ name: p.name, slug: p.slug, base_price: p.base_price, description: p.description || '', category: p.category || '', category_id: p.category_id || '', status: p.status });
       const v = await variants.list(id);
       setProductVariants(v.items);
@@ -78,6 +81,34 @@ export default function ProductDetail() {
     } catch (err) { toast(err.message, 'error'); }
   };
 
+  const handleImageUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setUploading(true);
+    try {
+      const newImages = await productImages.upload(id, files, images.length === 0);
+      setImages(prev => [...prev, ...newImages]);
+      toast(`${files.length} image${files.length > 1 ? 's' : ''} uploaded`, 'success');
+    } catch (err) { toast(err.message, 'error'); }
+    finally { setUploading(false); e.target.value = ''; }
+  };
+
+  const handleSetPrimary = async (imageId) => {
+    try {
+      await productImages.setPrimary(id, imageId);
+      setImages(prev => prev.map(img => ({ ...img, is_primary: img.id === imageId })));
+      toast('Primary image updated', 'success');
+    } catch (err) { toast(err.message, 'error'); }
+  };
+
+  const handleDeleteImage = async (imageId) => {
+    try {
+      await productImages.delete(id, imageId);
+      setImages(prev => prev.filter(img => img.id !== imageId));
+      toast('Image deleted', 'success');
+    } catch (err) { toast(err.message, 'error'); }
+  };
+
   if (loading) return <PageSkeleton />;
   if (!product) return null;
 
@@ -87,7 +118,7 @@ export default function ProductDetail() {
   const variantColumns = [
     { key: 'sku', label: 'SKU', render: (r) => <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded">{r.sku}</span> },
     { key: 'title', label: 'Title', render: (r) => <span className="font-medium text-gray-900">{r.title}</span> },
-    { key: 'price', label: 'Price', render: (r) => <span className="font-semibold">${Number(r.price).toFixed(2)}</span> },
+    { key: 'price', label: 'Price', render: (r) => <span className="font-semibold">৳{Number(r.price).toFixed(2)}</span> },
     { key: 'inventory_qty', label: 'Stock', render: (r) => (
       <Badge variant={r.inventory_qty > 10 ? 'success' : r.inventory_qty > 0 ? 'warning' : 'danger'} dot>
         {r.inventory_qty} units
@@ -123,7 +154,7 @@ export default function ProductDetail() {
         <Card>
           <div className="p-5 text-center">
             <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Price</p>
-            <p className="text-2xl font-bold text-gray-900">${Number(product.base_price).toFixed(2)}</p>
+            <p className="text-2xl font-bold text-gray-900">৳{Number(product.base_price).toFixed(2)}</p>
           </div>
         </Card>
         <Card>
@@ -171,6 +202,57 @@ export default function ProductDetail() {
         </div>
       </Card>
 
+      {/* Product Images */}
+      <Card className="mb-8">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Product Images</h3>
+              <p className="text-xs text-gray-400 mt-0.5">{images.length}/10 images uploaded</p>
+            </div>
+            {images.length < 10 && (
+              <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                {uploading ? 'Uploading...' : 'Upload'}
+                <input type="file" multiple accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploading} />
+              </label>
+            )}
+          </div>
+          {images.length === 0 ? (
+            <div className="border-2 border-dashed border-gray-200 rounded-lg p-8 text-center">
+              <div className="text-4xl mb-2 opacity-30">🖼️</div>
+              <p className="text-sm text-gray-500">No images yet. Upload product photos to display in your storefront.</p>
+              <label className="cursor-pointer mt-3 inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                Upload Images
+                <input type="file" multiple accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploading} />
+              </label>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {images.map((img) => (
+                <div key={img.id} className={`relative group rounded-lg overflow-hidden border-2 ${img.is_primary ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-gray-200'}`}>
+                  <img src={img.url} alt={img.alt_text || 'Product'} className="aspect-square object-cover w-full" />
+                  {img.is_primary && (
+                    <span className="absolute top-1 left-1 bg-indigo-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">PRIMARY</span>
+                  )}
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                    {!img.is_primary && (
+                      <button onClick={() => handleSetPrimary(img.id)} className="p-1.5 bg-white rounded-full text-indigo-600 hover:bg-indigo-50" title="Set as primary">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+                      </button>
+                    )}
+                    <button onClick={() => handleDeleteImage(img.id)} className="p-1.5 bg-white rounded-full text-red-600 hover:bg-red-50" title="Delete image">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Card>
+
       {/* Variants section */}
       <div className="mb-4 flex items-center justify-between">
         <div>
@@ -191,7 +273,7 @@ export default function ProductDetail() {
           <FormField label="Name"><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></FormField>
           <FormField label="Slug"><Input value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} required /></FormField>
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Base Price ($)"><Input type="number" step="0.01" min="0" value={form.base_price} onChange={(e) => setForm({ ...form, base_price: e.target.value })} required /></FormField>
+            <FormField label="Base Price (৳)"><Input type="number" step="0.01" min="0" value={form.base_price} onChange={(e) => setForm({ ...form, base_price: e.target.value })} required /></FormField>
             <FormField label="Status">
               <Select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
                 <option value="draft">Draft</option>
@@ -226,7 +308,7 @@ export default function ProductDetail() {
             <FormField label="Title"><Input value={variantForm.title} onChange={(e) => setVariantForm({ ...variantForm, title: e.target.value })} placeholder="e.g. Small (8oz)" required /></FormField>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Price ($)"><Input type="number" step="0.01" min="0" value={variantForm.price} onChange={(e) => setVariantForm({ ...variantForm, price: e.target.value })} required /></FormField>
+            <FormField label="Price (৳)"><Input type="number" step="0.01" min="0" value={variantForm.price} onChange={(e) => setVariantForm({ ...variantForm, price: e.target.value })} required /></FormField>
             <FormField label="Initial Stock"><Input type="number" min="0" value={variantForm.inventory_qty} onChange={(e) => setVariantForm({ ...variantForm, inventory_qty: e.target.value })} /></FormField>
           </div>
           <div className="flex gap-2 justify-end mt-6 pt-4 border-t border-gray-100">

@@ -72,5 +72,13 @@ async function countByShop(shopId) {
   return parseInt(res.rows[0].count, 10);
 }
 
-module.exports = { listByShop, findByIdAndShop, findBySlugAndShop, createProduct, updateProduct, deleteProduct, countByShop };
+async function decrementStock(productId, shopId, quantity, client) {
+  const q = client || db;
+  await q.query(
+    'UPDATE products SET stock_quantity = stock_quantity - $1, updated_at = now() WHERE id = $2 AND shop_id = $3',
+    [quantity, productId, shopId]
+  );
+}
+
+module.exports = { listByShop, findByIdAndShop, findBySlugAndShop, createProduct, updateProduct, deleteProduct, countByShop, decrementStock };
 

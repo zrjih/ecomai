@@ -43,7 +43,7 @@ export default function ShopSettings() {
     e.preventDefault();
     setError(''); setSaving(true);
     try {
-      const updated = await shops.update(shop.id, editForm);
+      const updated = await shops.updateMe(editForm);
       setShop({ ...shop, ...updated });
       setShowEdit(false);
       toast('Shop settings updated!', 'success');

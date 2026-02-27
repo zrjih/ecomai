@@ -68,6 +68,22 @@ CREATE TABLE IF NOT EXISTS customers (
   UNIQUE(shop_id, email)
 );
 
+-- ── Categories (per-shop, admin-managed) ───────────────────
+CREATE TABLE IF NOT EXISTS categories (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  shop_id     UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  slug        TEXT NOT NULL,
+  description TEXT,
+  image_url   TEXT,
+  parent_id   UUID REFERENCES categories(id) ON DELETE SET NULL,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  status      TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','archived')),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(shop_id, slug)
+);
+
 -- ── Products ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS products (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -207,20 +223,16 @@ CREATE TABLE IF NOT EXISTS inventory_movements (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- ── Categories (per-shop, admin-managed) ───────────────────
-CREATE TABLE IF NOT EXISTS categories (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  shop_id     UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
-  name        TEXT NOT NULL,
-  slug        TEXT NOT NULL,
-  description TEXT,
-  image_url   TEXT,
-  parent_id   UUID REFERENCES categories(id) ON DELETE SET NULL,
-  sort_order  INTEGER NOT NULL DEFAULT 0,
-  status      TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','archived')),
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE(shop_id, slug)
+-- ── Product Images ──────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS product_images (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  shop_id       UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
+  product_id    UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  url           TEXT NOT NULL,
+  alt_text      TEXT,
+  sort_order    INT NOT NULL DEFAULT 0,
+  is_primary    BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ── Category Requests (customer suggestions) ───────────────
@@ -302,6 +314,8 @@ CREATE INDEX IF NOT EXISTS idx_categories_shop     ON categories(shop_id);
 CREATE INDEX IF NOT EXISTS idx_categories_parent   ON categories(parent_id);
 CREATE INDEX IF NOT EXISTS idx_cat_requests_shop   ON category_requests(shop_id);
 CREATE INDEX IF NOT EXISTS idx_products_category   ON products(category_id);
+CREATE INDEX IF NOT EXISTS idx_product_images_prod ON product_images(product_id);
+CREATE INDEX IF NOT EXISTS idx_product_images_shop ON product_images(shop_id);
 CREATE INDEX IF NOT EXISTS idx_website_shop        ON website_settings(shop_id);
 CREATE INDEX IF NOT EXISTS idx_refresh_user        ON refresh_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_refresh_hash        ON refresh_tokens(token);

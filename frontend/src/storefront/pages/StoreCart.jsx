@@ -55,13 +55,17 @@ export default function StoreCart() {
             >
               {/* Thumbnail */}
               <div
-                className="w-20 h-20 shrink-0 flex items-center justify-center text-3xl"
+                className="w-20 h-20 shrink-0 overflow-hidden"
                 style={{
                   backgroundColor: t.border + '40',
                   borderRadius: t.radius,
                 }}
               >
-                📦
+                {item.image ? (
+                  <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-3xl">📦</div>
+                )}
               </div>
 
               {/* Info */}
@@ -75,7 +79,7 @@ export default function StoreCart() {
                   </p>
                 )}
                 <p className="text-sm font-bold mt-1" style={{ color: t.primary }}>
-                  ${item.price.toFixed(2)}
+                  ৳{item.price.toFixed(2)}
                 </p>
               </div>
 
@@ -111,7 +115,7 @@ export default function StoreCart() {
               {/* Line total */}
               <div className="text-right">
                 <p className="font-bold text-sm" style={{ color: t.text }}>
-                  ${(item.price * item.quantity).toFixed(2)}
+                  ৳{(item.price * item.quantity).toFixed(2)}
                 </p>
               </div>
 
@@ -145,7 +149,7 @@ export default function StoreCart() {
             <div className="space-y-3 mb-6">
               <div className="flex justify-between text-sm">
                 <span style={{ color: t.textMuted }}>Subtotal ({count} items)</span>
-                <span className="font-medium" style={{ color: t.text }}>${total.toFixed(2)}</span>
+                <span className="font-medium" style={{ color: t.text }}>৳{total.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span style={{ color: t.textMuted }}>Shipping</span>
@@ -158,7 +162,7 @@ export default function StoreCart() {
               <hr style={{ borderColor: t.border }} />
               <div className="flex justify-between">
                 <span className="font-bold" style={{ color: t.text }}>Total</span>
-                <span className="text-xl font-bold" style={{ color: t.primary }}>${total.toFixed(2)}</span>
+                <span className="text-xl font-bold" style={{ color: t.primary }}>৳{total.toFixed(2)}</span>
               </div>
             </div>
 

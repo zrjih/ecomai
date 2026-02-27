@@ -21,7 +21,7 @@ async function getShopBySlug(slug) {
   return shop;
 }
 
-async function createShop({ name, slug, status, industry, subscription_plan, owner_id }) {
+async function createShop({ name, slug, status, industry, subscription_plan, owner_user_id }) {
   if (!name || !slug) {
     throw new DomainError('VALIDATION_ERROR', 'name and slug are required', 400);
   }
@@ -29,7 +29,7 @@ async function createShop({ name, slug, status, industry, subscription_plan, own
   if (existing) {
     throw new DomainError('DUPLICATE_SLUG', 'shop slug already exists', 409);
   }
-  return shopRepo.createShop({ name, slug, status, industry, subscription_plan, owner_id });
+  return shopRepo.createShop({ name, slug, status, industry, subscription_plan, owner_user_id });
 }
 
 async function updateShop(shopId, patch) {

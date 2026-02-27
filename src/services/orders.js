@@ -103,6 +103,18 @@ async function createOrder({ shopId, customer_email, customer_id, items, shippin
           reason: `Order ${order.id}`,
           reference_id: order.id,
         }, client);
+      } else if (ri.product_id) {
+        // Decrement stock for non-variant products
+        await productRepo.decrementStock(ri.product_id, shopId, ri.quantity, client);
+        await inventoryRepo.createMovement({
+          shop_id: shopId,
+          variant_id: null,
+          product_id: ri.product_id,
+          type: 'sale',
+          quantity: -ri.quantity,
+          reason: `Order ${order.id}`,
+          reference_id: order.id,
+        }, client);
       }
     }
 

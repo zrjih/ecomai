@@ -76,6 +76,22 @@ export const products = {
   delete: (id) => request('DELETE', `/products/${id}`),
 };
 
+export const productImages = {
+  list: (productId) => request('GET', `/products/${productId}/images`),
+  upload: async (productId, files, isPrimary = false) => {
+    const fd = new FormData();
+    for (const f of files) fd.append('images', f);
+    if (isPrimary) fd.append('is_primary', 'true');
+    const headers = {};
+    if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+    const res = await fetch(`${API_BASE}/products/${productId}/images`, { method: 'POST', headers, body: fd });
+    if (!res.ok) { const err = await res.json().catch(() => ({ message: 'Upload failed' })); throw new Error(err.message || `${res.status}`); }
+    return res.json();
+  },
+  setPrimary: (productId, imageId) => request('PATCH', `/products/${productId}/images/${imageId}/primary`),
+  delete: (productId, imageId) => request('DELETE', `/products/${productId}/images/${imageId}`),
+};
+
 export const variants = {
   list: (productId) => request('GET', `/products/${productId}/variants`),
   create: (productId, data) => request('POST', `/products/${productId}/variants`, data),

@@ -87,8 +87,9 @@ export default function StoreCheckout() {
       }
 
       // SSLCommerz flow: redirect to payment gateway
+      // Cart will be cleared on CheckoutSuccess — not here, because
+      // the customer may cancel or fail and come back.
       if (result.payment?.gatewayUrl) {
-        clearCart();
         window.location.href = result.payment.gatewayUrl;
         return;
       }

@@ -1,8 +1,13 @@
 const productRepo = require('../repositories/products');
+const imageRepo = require('../repositories/product-images');
 const { DomainError } = require('../errors/domain-error');
 
 async function listProducts(shopId, opts) {
-  return productRepo.listByShop(shopId, opts);
+  const result = await productRepo.listByShop(shopId, opts);
+  const ids = result.items.map(p => p.id);
+  const imgMap = await imageRepo.listByProducts(ids, shopId);
+  result.items = result.items.map(p => ({ ...p, images: imgMap[p.id] || [] }));
+  return result;
 }
 
 async function getProduct(shopId, productId) {
@@ -10,7 +15,8 @@ async function getProduct(shopId, productId) {
   if (!product) {
     throw new DomainError('PRODUCT_NOT_FOUND', 'Product not found', 404);
   }
-  return product;
+  const images = await imageRepo.listByProduct(productId, shopId);
+  return { ...product, images };
 }
 
 async function getProductBySlug(shopId, slug) {
@@ -59,7 +65,7 @@ async function updateProduct(shopId, productId, patch) {
 
 async function deleteProduct(shopId, productId) {
   await getProduct(shopId, productId);
-  await productRepo.deleteProduct(productId);
+  await productRepo.deleteProduct(productId, shopId);
   return { success: true };
 }
 

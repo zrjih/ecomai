@@ -27,6 +27,10 @@ async function login(email, password) {
     throw new DomainError('INVALID_CREDENTIALS', 'Invalid credentials', 401);
   }
 
+  if (!user.is_active) {
+    throw new DomainError('ACCOUNT_DISABLED', 'Account is disabled. Contact your administrator.', 403);
+  }
+
   const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) {
     throw new DomainError('INVALID_CREDENTIALS', 'Invalid credentials', 401);

@@ -371,231 +371,13 @@ export default function StoreAccount() {
   };
 
   /* ── Profile Tab ── */
-  const renderProfile = () => {
-    const [form, setForm] = useState({ full_name: profile?.full_name || '', phone: profile?.phone || '' });
-    const [saving, setSaving] = useState(false);
-    const [msg, setMsg] = useState('');
-
-    const save = async () => {
-      setSaving(true); setMsg('');
-      try {
-        const updated = await storeApi.updateProfile(shopSlug, form, token);
-        setProfile(updated);
-        setMsg('Profile updated successfully!');
-      } catch (e) { setMsg(e.message); }
-      finally { setSaving(false); }
-    };
-
-    return (
-      <div className="space-y-6">
-        <h3 className="text-xl font-bold" style={{ color: t.text }}>My Profile</h3>
-        <Card>
-          {/* Avatar */}
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold" style={{ backgroundColor: `${t.primary}15`, color: t.primary }}>
-              {profile?.full_name?.charAt(0)?.toUpperCase() || profile?.email?.charAt(0)?.toUpperCase() || '?'}
-            </div>
-            <div>
-              <div className="font-bold text-lg" style={{ color: t.text }}>{profile?.full_name || 'Customer'}</div>
-              <div className="text-sm" style={{ color: t.textMuted }}>{profile?.email}</div>
-              <div className="text-xs mt-0.5" style={{ color: t.textMuted }}>
-                Member since {new Date(profile?.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: t.text }}>Full Name</label>
-              <input value={form.full_name} onChange={(e) => setForm(p => ({ ...p, full_name: e.target.value }))} className={inputCls} style={inputStyle} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: t.text }}>Email</label>
-              <input value={profile?.email || ''} disabled className={`${inputCls} opacity-60 cursor-not-allowed`} style={inputStyle} />
-              <p className="text-xs mt-1" style={{ color: t.textMuted }}>Email cannot be changed.</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: t.text }}>Phone</label>
-              <input value={form.phone} onChange={(e) => setForm(p => ({ ...p, phone: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. +880 1XXX XXXXXX" />
-            </div>
-          </div>
-
-          {msg && <p className={`text-sm mt-3 font-medium ${msg.includes('success') ? 'text-green-600' : 'text-red-600'}`}>{msg}</p>}
-
-          <button onClick={save} disabled={saving} className="mt-6 px-6 py-2.5 text-sm font-semibold transition hover:opacity-80 disabled:opacity-50" style={btnPrimary}>
-            {saving ? 'Saving...' : 'Save Changes'}
-          </button>
-        </Card>
-      </div>
-    );
-  };
+  const renderProfile = () => <ProfileTab t={t} profile={profile} setProfile={setProfile} shopSlug={shopSlug} token={token} Card={Card} inputCls={inputCls} inputStyle={inputStyle} btnPrimary={btnPrimary} />;
 
   /* ── Addresses Tab ── */
-  const renderAddresses = () => {
-    const [editing, setEditing] = useState(null);
-    const [form, setForm] = useState({ street: '', city: '', state: '', zip: '', country: 'BD', label: '' });
-    const [saving, setSaving] = useState(false);
-    const [msg, setMsg] = useState('');
-
-    const saveAddress = async () => {
-      setSaving(true); setMsg('');
-      try {
-        const newAddrs = [...addresses];
-        if (editing !== null && editing < addresses.length) {
-          newAddrs[editing] = form;
-        } else {
-          if (newAddrs.length >= 5) { setMsg('Maximum 5 addresses allowed.'); setSaving(false); return; }
-          newAddrs.push(form);
-        }
-        const updated = await storeApi.updateProfile(shopSlug, { addresses: newAddrs }, token);
-        setProfile(updated);
-        setEditing(null);
-        setForm({ street: '', city: '', state: '', zip: '', country: 'BD', label: '' });
-        setMsg('Address saved!');
-      } catch (e) { setMsg(e.message); }
-      finally { setSaving(false); }
-    };
-
-    const deleteAddr = async (idx) => {
-      const newAddrs = addresses.filter((_, i) => i !== idx);
-      try {
-        const updated = await storeApi.updateProfile(shopSlug, { addresses: newAddrs }, token);
-        setProfile(updated);
-      } catch {}
-    };
-
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xl font-bold" style={{ color: t.text }}>My Addresses</h3>
-          {editing === null && (
-            <button onClick={() => { setEditing(addresses.length); setForm({ street: '', city: '', state: '', zip: '', country: 'BD', label: '' }); }}
-              className="px-4 py-2 text-sm font-semibold transition hover:opacity-80" style={btnPrimary}>
-              + Add Address
-            </button>
-          )}
-        </div>
-
-        {editing !== null ? (
-          <Card>
-            <h4 className="font-bold mb-4" style={{ color: t.text }}>{editing < addresses.length ? 'Edit Address' : 'New Address'}</h4>
-            <div className="space-y-3">
-              <input placeholder="Label (e.g. Home, Office)" value={form.label} onChange={(e) => setForm(p => ({ ...p, label: e.target.value }))} className={inputCls} style={inputStyle} />
-              <input placeholder="Street address *" value={form.street} onChange={(e) => setForm(p => ({ ...p, street: e.target.value }))} className={inputCls} style={inputStyle} required />
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <input placeholder="City *" value={form.city} onChange={(e) => setForm(p => ({ ...p, city: e.target.value }))} className={inputCls} style={inputStyle} />
-                <input placeholder="State" value={form.state} onChange={(e) => setForm(p => ({ ...p, state: e.target.value }))} className={inputCls} style={inputStyle} />
-                <input placeholder="ZIP *" value={form.zip} onChange={(e) => setForm(p => ({ ...p, zip: e.target.value }))} className={inputCls} style={inputStyle} />
-              </div>
-            </div>
-            {msg && <p className="text-sm mt-2 font-medium text-red-600">{msg}</p>}
-            <div className="flex items-center gap-3 mt-4">
-              <button onClick={saveAddress} disabled={saving || !form.street || !form.city} className="px-5 py-2.5 text-sm font-semibold transition hover:opacity-80 disabled:opacity-50" style={btnPrimary}>
-                {saving ? 'Saving...' : 'Save Address'}
-              </button>
-              <button onClick={() => { setEditing(null); setMsg(''); }} className="px-5 py-2.5 text-sm font-medium transition hover:opacity-80" style={btnOutline}>Cancel</button>
-            </div>
-          </Card>
-        ) : addresses.length === 0 ? (
-          <Card>
-            <div className="text-center py-8">
-              <div className="text-4xl mb-3 opacity-30">📍</div>
-              <p className="text-sm" style={{ color: t.textMuted }}>No saved addresses. Add one for faster checkout!</p>
-            </div>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {addresses.map((addr, i) => (
-              <Card key={i}>
-                <div className="flex items-start justify-between">
-                  <div>
-                    {addr.label && <div className="font-bold text-sm mb-1" style={{ color: t.primary }}>{addr.label}</div>}
-                    <div className="text-sm space-y-0.5" style={{ color: t.textMuted }}>
-                      <p>{addr.street}</p>
-                      <p>{[addr.city, addr.state, addr.zip].filter(Boolean).join(', ')}</p>
-                      <p>{addr.country}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => { setEditing(i); setForm(addr); }} className="text-xs font-medium hover:underline" style={{ color: t.primary }}>Edit</button>
-                    <button onClick={() => deleteAddr(i)} className="text-xs font-medium hover:underline text-red-500">Delete</button>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
+  const renderAddresses = () => <AddressesTab t={t} profile={profile} setProfile={setProfile} shopSlug={shopSlug} token={token} addresses={addresses} Card={Card} inputCls={inputCls} inputStyle={inputStyle} btnPrimary={btnPrimary} btnOutline={btnOutline} />;
 
   /* ── Security Tab ── */
-  const renderSecurity = () => {
-    const [form, setForm] = useState({ current_password: '', new_password: '', confirm_password: '' });
-    const [saving, setSaving] = useState(false);
-    const [msg, setMsg] = useState({ text: '', success: false });
-
-    const isGuest = !profile?.is_registered;
-
-    const handleChange = async () => {
-      if (form.new_password !== form.confirm_password) {
-        setMsg({ text: 'Passwords do not match.', success: false }); return;
-      }
-      if (form.new_password.length < 6) {
-        setMsg({ text: 'Password must be at least 6 characters.', success: false }); return;
-      }
-      setSaving(true); setMsg({ text: '', success: false });
-      try {
-        await storeApi.changePassword(shopSlug, {
-          current_password: form.current_password || undefined,
-          new_password: form.new_password,
-        }, token);
-        setMsg({ text: isGuest ? 'Password set! You can now sign in with your email and password.' : 'Password changed successfully!', success: true });
-        setForm({ current_password: '', new_password: '', confirm_password: '' });
-      } catch (e) { setMsg({ text: e.message, success: false }); }
-      finally { setSaving(false); }
-    };
-
-    return (
-      <div className="space-y-6">
-        <h3 className="text-xl font-bold" style={{ color: t.text }}>Security</h3>
-        <Card>
-          {isGuest && (
-            <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: `${t.primary}10`, border: `1px solid ${t.primary}30` }}>
-              <p className="text-sm font-medium" style={{ color: t.primary }}>
-                Your account was created during checkout. Set a password to fully secure your account and sign in directly next time!
-              </p>
-            </div>
-          )}
-
-          <h4 className="font-bold mb-4" style={{ color: t.text }}>{isGuest ? 'Set a Password' : 'Change Password'}</h4>
-          <div className="space-y-4 max-w-md">
-            {!isGuest && (
-              <div>
-                <label className="block text-sm font-medium mb-1.5" style={{ color: t.text }}>Current Password</label>
-                <input type="password" value={form.current_password} onChange={(e) => setForm(p => ({ ...p, current_password: e.target.value }))} className={inputCls} style={inputStyle} />
-              </div>
-            )}
-            <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: t.text }}>New Password</label>
-              <input type="password" value={form.new_password} onChange={(e) => setForm(p => ({ ...p, new_password: e.target.value }))} className={inputCls} style={inputStyle} placeholder="At least 6 characters" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: t.text }}>Confirm New Password</label>
-              <input type="password" value={form.confirm_password} onChange={(e) => setForm(p => ({ ...p, confirm_password: e.target.value }))} className={inputCls} style={inputStyle} />
-            </div>
-          </div>
-
-          {msg.text && <p className={`text-sm mt-3 font-medium ${msg.success ? 'text-green-600' : 'text-red-600'}`}>{msg.text}</p>}
-
-          <button onClick={handleChange} disabled={saving || !form.new_password || !form.confirm_password}
-            className="mt-6 px-6 py-2.5 text-sm font-semibold transition hover:opacity-80 disabled:opacity-50" style={btnPrimary}>
-            {saving ? 'Saving...' : isGuest ? 'Set Password' : 'Change Password'}
-          </button>
-        </Card>
-      </div>
-    );
-  };
+  const renderSecurity = () => <SecurityTab t={t} profile={profile} shopSlug={shopSlug} token={token} Card={Card} inputCls={inputCls} inputStyle={inputStyle} btnPrimary={btnPrimary} />;
 
   const tabContent = {
     dashboard: renderDashboard,
@@ -658,6 +440,233 @@ export default function StoreAccount() {
           {tabContent[tab]?.() || null}
         </main>
       </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   EXTRACTED TAB COMPONENTS (proper hooks usage)
+   ══════════════════════════════════════════════ */
+
+function ProfileTab({ t, profile, setProfile, shopSlug, token, Card, inputCls, inputStyle, btnPrimary }) {
+  const [form, setForm] = useState({ full_name: profile?.full_name || '', phone: profile?.phone || '' });
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const save = async () => {
+    setSaving(true); setMsg('');
+    try {
+      const updated = await storeApi.updateProfile(shopSlug, form, token);
+      setProfile(updated);
+      setMsg('Profile updated successfully!');
+    } catch (e) { setMsg(e.message); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="space-y-6">
+      <h3 className="text-xl font-bold" style={{ color: t.text }}>My Profile</h3>
+      <Card>
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold" style={{ backgroundColor: `${t.primary}15`, color: t.primary }}>
+            {profile?.full_name?.charAt(0)?.toUpperCase() || profile?.email?.charAt(0)?.toUpperCase() || '?'}
+          </div>
+          <div>
+            <div className="font-bold text-lg" style={{ color: t.text }}>{profile?.full_name || 'Customer'}</div>
+            <div className="text-sm" style={{ color: t.textMuted }}>{profile?.email}</div>
+            <div className="text-xs mt-0.5" style={{ color: t.textMuted }}>
+              Member since {new Date(profile?.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: t.text }}>Full Name</label>
+            <input value={form.full_name} onChange={(e) => setForm(p => ({ ...p, full_name: e.target.value }))} className={inputCls} style={inputStyle} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: t.text }}>Email</label>
+            <input value={profile?.email || ''} disabled className={`${inputCls} opacity-60 cursor-not-allowed`} style={inputStyle} />
+            <p className="text-xs mt-1" style={{ color: t.textMuted }}>Email cannot be changed.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: t.text }}>Phone</label>
+            <input value={form.phone} onChange={(e) => setForm(p => ({ ...p, phone: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. +880 1XXX XXXXXX" />
+          </div>
+        </div>
+
+        {msg && <p className={`text-sm mt-3 font-medium ${msg.includes('success') ? 'text-green-600' : 'text-red-600'}`}>{msg}</p>}
+
+        <button onClick={save} disabled={saving} className="mt-6 px-6 py-2.5 text-sm font-semibold transition hover:opacity-80 disabled:opacity-50" style={btnPrimary}>
+          {saving ? 'Saving...' : 'Save Changes'}
+        </button>
+      </Card>
+    </div>
+  );
+}
+
+function AddressesTab({ t, profile, setProfile, shopSlug, token, addresses, Card, inputCls, inputStyle, btnPrimary, btnOutline }) {
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState({ street: '', city: '', state: '', zip: '', country: 'BD', label: '' });
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const saveAddress = async () => {
+    setSaving(true); setMsg('');
+    try {
+      const newAddrs = [...addresses];
+      if (editing !== null && editing < addresses.length) {
+        newAddrs[editing] = form;
+      } else {
+        if (newAddrs.length >= 5) { setMsg('Maximum 5 addresses allowed.'); setSaving(false); return; }
+        newAddrs.push(form);
+      }
+      const updated = await storeApi.updateProfile(shopSlug, { addresses: newAddrs }, token);
+      setProfile(updated);
+      setEditing(null);
+      setForm({ street: '', city: '', state: '', zip: '', country: 'BD', label: '' });
+      setMsg('Address saved!');
+    } catch (e) { setMsg(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const deleteAddr = async (idx) => {
+    const newAddrs = addresses.filter((_, i) => i !== idx);
+    try {
+      const updated = await storeApi.updateProfile(shopSlug, { addresses: newAddrs }, token);
+      setProfile(updated);
+    } catch {}
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xl font-bold" style={{ color: t.text }}>My Addresses</h3>
+        {editing === null && (
+          <button onClick={() => { setEditing(addresses.length); setForm({ street: '', city: '', state: '', zip: '', country: 'BD', label: '' }); }}
+            className="px-4 py-2 text-sm font-semibold transition hover:opacity-80" style={btnPrimary}>
+            + Add Address
+          </button>
+        )}
+      </div>
+
+      {editing !== null ? (
+        <Card>
+          <h4 className="font-bold mb-4" style={{ color: t.text }}>{editing < addresses.length ? 'Edit Address' : 'New Address'}</h4>
+          <div className="space-y-3">
+            <input placeholder="Label (e.g. Home, Office)" value={form.label} onChange={(e) => setForm(p => ({ ...p, label: e.target.value }))} className={inputCls} style={inputStyle} />
+            <input placeholder="Street address *" value={form.street} onChange={(e) => setForm(p => ({ ...p, street: e.target.value }))} className={inputCls} style={inputStyle} required />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <input placeholder="City *" value={form.city} onChange={(e) => setForm(p => ({ ...p, city: e.target.value }))} className={inputCls} style={inputStyle} />
+              <input placeholder="State" value={form.state} onChange={(e) => setForm(p => ({ ...p, state: e.target.value }))} className={inputCls} style={inputStyle} />
+              <input placeholder="ZIP *" value={form.zip} onChange={(e) => setForm(p => ({ ...p, zip: e.target.value }))} className={inputCls} style={inputStyle} />
+            </div>
+          </div>
+          {msg && <p className="text-sm mt-2 font-medium text-red-600">{msg}</p>}
+          <div className="flex items-center gap-3 mt-4">
+            <button onClick={saveAddress} disabled={saving || !form.street || !form.city} className="px-5 py-2.5 text-sm font-semibold transition hover:opacity-80 disabled:opacity-50" style={btnPrimary}>
+              {saving ? 'Saving...' : 'Save Address'}
+            </button>
+            <button onClick={() => { setEditing(null); setMsg(''); }} className="px-5 py-2.5 text-sm font-medium transition hover:opacity-80" style={btnOutline}>Cancel</button>
+          </div>
+        </Card>
+      ) : addresses.length === 0 ? (
+        <Card>
+          <div className="text-center py-8">
+            <div className="text-4xl mb-3 opacity-30">📍</div>
+            <p className="text-sm" style={{ color: t.textMuted }}>No saved addresses. Add one for faster checkout!</p>
+          </div>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {addresses.map((addr, i) => (
+            <Card key={i}>
+              <div className="flex items-start justify-between">
+                <div>
+                  {addr.label && <div className="font-bold text-sm mb-1" style={{ color: t.primary }}>{addr.label}</div>}
+                  <div className="text-sm space-y-0.5" style={{ color: t.textMuted }}>
+                    <p>{addr.street}</p>
+                    <p>{[addr.city, addr.state, addr.zip].filter(Boolean).join(', ')}</p>
+                    <p>{addr.country}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => { setEditing(i); setForm(addr); }} className="text-xs font-medium hover:underline" style={{ color: t.primary }}>Edit</button>
+                  <button onClick={() => deleteAddr(i)} className="text-xs font-medium hover:underline text-red-500">Delete</button>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SecurityTab({ t, profile, shopSlug, token, Card, inputCls, inputStyle, btnPrimary }) {
+  const [form, setForm] = useState({ current_password: '', new_password: '', confirm_password: '' });
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState({ text: '', success: false });
+
+  const isGuest = !profile?.is_registered;
+
+  const handleChange = async () => {
+    if (form.new_password !== form.confirm_password) {
+      setMsg({ text: 'Passwords do not match.', success: false }); return;
+    }
+    if (form.new_password.length < 6) {
+      setMsg({ text: 'Password must be at least 6 characters.', success: false }); return;
+    }
+    setSaving(true); setMsg({ text: '', success: false });
+    try {
+      await storeApi.changePassword(shopSlug, {
+        current_password: form.current_password || undefined,
+        new_password: form.new_password,
+      }, token);
+      setMsg({ text: isGuest ? 'Password set! You can now sign in with your email and password.' : 'Password changed successfully!', success: true });
+      setForm({ current_password: '', new_password: '', confirm_password: '' });
+    } catch (e) { setMsg({ text: e.message, success: false }); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="space-y-6">
+      <h3 className="text-xl font-bold" style={{ color: t.text }}>Security</h3>
+      <Card>
+        {isGuest && (
+          <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: `${t.primary}10`, border: `1px solid ${t.primary}30` }}>
+            <p className="text-sm font-medium" style={{ color: t.primary }}>
+              Your account was created during checkout. Set a password to fully secure your account and sign in directly next time!
+            </p>
+          </div>
+        )}
+
+        <h4 className="font-bold mb-4" style={{ color: t.text }}>{isGuest ? 'Set a Password' : 'Change Password'}</h4>
+        <div className="space-y-4 max-w-md">
+          {!isGuest && (
+            <div>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: t.text }}>Current Password</label>
+              <input type="password" value={form.current_password} onChange={(e) => setForm(p => ({ ...p, current_password: e.target.value }))} className={inputCls} style={inputStyle} />
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: t.text }}>New Password</label>
+            <input type="password" value={form.new_password} onChange={(e) => setForm(p => ({ ...p, new_password: e.target.value }))} className={inputCls} style={inputStyle} placeholder="At least 6 characters" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: t.text }}>Confirm New Password</label>
+            <input type="password" value={form.confirm_password} onChange={(e) => setForm(p => ({ ...p, confirm_password: e.target.value }))} className={inputCls} style={inputStyle} />
+          </div>
+        </div>
+
+        {msg.text && <p className={`text-sm mt-3 font-medium ${msg.success ? 'text-green-600' : 'text-red-600'}`}>{msg.text}</p>}
+
+        <button onClick={handleChange} disabled={saving || !form.new_password || !form.confirm_password}
+          className="mt-6 px-6 py-2.5 text-sm font-semibold transition hover:opacity-80 disabled:opacity-50" style={btnPrimary}>
+          {saving ? 'Saving...' : isGuest ? 'Set Password' : 'Change Password'}
+        </button>
+      </Card>
     </div>
   );
 }

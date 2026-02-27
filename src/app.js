@@ -22,6 +22,7 @@ const websiteSettingsRoutes = require('./routes/website-settings');
 const categoryRoutes = require('./routes/categories');
 const driverRoutes = require('./routes/driver');
 const publicRoutes = require('./routes/public');
+const productImageRoutes = require('./routes/product-images');
 
 const app = express();
 
@@ -38,6 +39,9 @@ const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeade
 app.use('/v1', apiLimiter);
 app.use('/v1/auth', authLimiter);
 app.use('/v1/register', authLimiter);
+
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 // Serve frontend static files
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist')));
@@ -65,6 +69,7 @@ app.use('/v1', variantRoutes);
 app.use('/v1/inventory-movements', inventoryRoutes);
 app.use('/v1/website-settings', websiteSettingsRoutes);
 app.use('/v1/categories', categoryRoutes);
+app.use('/v1/products', productImageRoutes);
 app.use('/v1/driver', driverRoutes);
 
 // SPA fallback — serve index.html for any non-API route

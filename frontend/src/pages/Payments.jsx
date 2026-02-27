@@ -75,7 +75,7 @@ export default function Payments() {
       </div>
     )},
     { key: 'amount', label: 'Amount', render: (r) => (
-      <span className="font-semibold text-gray-900">${Number(r.amount).toFixed(2)} <span className="text-xs text-gray-400 font-normal uppercase">{r.currency || 'USD'}</span></span>
+      <span className="font-semibold text-gray-900">৳{Number(r.amount).toFixed(2)} <span className="text-xs text-gray-400 font-normal uppercase">{r.currency || 'BDT'}</span></span>
     )},
     { key: 'provider', label: 'Provider', render: (r) => (
       <Badge variant="default">{r.provider}</Badge>
@@ -105,13 +105,13 @@ export default function Payments() {
         <StatCard label="Total Payments" value={total} icon={
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
         } />
-        <StatCard label="Captured" value={`$${totalCaptured.toFixed(2)}`} trend="up" trendLabel="Revenue" icon={
+        <StatCard label="Captured" value={`৳${totalCaptured.toFixed(2)}`} trend="up" trendLabel="Revenue" icon={
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
         } />
-        <StatCard label="Pending" value={`$${totalPending.toFixed(2)}`} icon={
+        <StatCard label="Pending" value={`৳${totalPending.toFixed(2)}`} icon={
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
         } />
-        <StatCard label="Refunded" value={`$${totalRefunded.toFixed(2)}`} trend={totalRefunded > 0 ? 'down' : undefined} icon={
+        <StatCard label="Refunded" value={`৳${totalRefunded.toFixed(2)}`} trend={totalRefunded > 0 ? 'down' : undefined} icon={
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
         } />
       </div>
@@ -129,11 +129,11 @@ export default function Payments() {
                 <svg className="w-5 h-5 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
                 <div>
                   <p className="text-sm font-medium text-amber-800">Refunding payment</p>
-                  <p className="text-xs text-amber-600"><span className="font-mono">{refunding.id.slice(0, 12)}</span> — Original: ${Number(refunding.amount).toFixed(2)}</p>
+                  <p className="text-xs text-amber-600"><span className="font-mono">{refunding.id.slice(0, 12)}</span> — Original: ৳{Number(refunding.amount).toFixed(2)}</p>
                 </div>
               </div>
             </Card>
-            <FormField label="Refund Amount" hint={`Max: $${Number(refunding.amount).toFixed(2)}`}>
+            <FormField label="Refund Amount" hint={`Max: ৳${Number(refunding.amount).toFixed(2)}`}>
               <Input type="number" step="0.01" min="0.01" max={refunding.amount} value={refundForm.amount} onChange={(e) => setRefundForm({ ...refundForm, amount: e.target.value })} required autoFocus />
             </FormField>
             <FormField label="Reason" hint="Required for audit trail">
@@ -153,7 +153,7 @@ export default function Payments() {
         onClose={() => setShowConfirm(false)}
         onConfirm={handleRefund}
         title="Confirm Refund"
-        message={`Are you sure you want to refund $${Number(refundForm.amount || 0).toFixed(2)}? This action cannot be undone.`}
+        message={`Are you sure you want to refund ৳${Number(refundForm.amount || 0).toFixed(2)}? This action cannot be undone.`}
         confirmLabel="Yes, Process Refund"
         variant="danger"
       />

@@ -25,7 +25,7 @@ export default function StoreHome() {
   const heroCta = homepage?.hero?.cta || 'Shop Now';
 
   const defaultBadges = [
-    { icon: '🚀', title: 'Fast Shipping', text: 'Free delivery on orders over $50' },
+    { icon: '🚀', title: 'Fast Shipping', text: 'Free delivery on orders over ৳5,000' },
     { icon: '🔒', title: 'Secure Checkout', text: '100% secure payment processing' },
     { icon: '💬', title: '24/7 Support', text: 'Dedicated support for every customer' },
   ];
@@ -113,15 +113,16 @@ export default function StoreHome() {
                     border: `1px solid ${t.border}`,
                   }}
                 >
-                  {/* Product image placeholder */}
+                  {/* Product image */}
                   <div
-                    className="aspect-square flex items-center justify-center text-6xl"
+                    className="aspect-square overflow-hidden"
                     style={{ backgroundColor: t.border + '40' }}
                   >
-                    {product.category === 'fashion' ? '👗' :
-                     product.category === 'electronics' ? '💻' :
-                     product.category === 'food_beverage' ? '☕' :
-                     '📦'}
+                    {product.images?.length > 0 ? (
+                      <img src={product.images.find(i => i.is_primary)?.url || product.images[0].url} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-6xl">📦</div>
+                    )}
                   </div>
                   <div className="p-4">
                     <h3 className="font-semibold text-sm mb-1 group-hover:opacity-70 transition" style={{ color: t.text }}>
@@ -133,7 +134,7 @@ export default function StoreHome() {
                       </p>
                     )}
                     <p className="text-lg font-bold" style={{ color: t.primary }}>
-                      ${Number(product.base_price).toFixed(2)}
+                      ৳{Number(product.base_price).toFixed(2)}
                     </p>
                   </div>
                 </div>
@@ -165,7 +166,7 @@ export default function StoreHome() {
       {/* Trust / Social proof section */}
       <section className="py-16" style={{ backgroundColor: t.surface }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className={`grid grid-cols-1 md:grid-cols-${Math.min(badges.length, 4)} gap-8 text-center`}>
+          <div className={`grid grid-cols-1 gap-8 text-center ${badges.length >= 4 ? 'md:grid-cols-4' : badges.length === 3 ? 'md:grid-cols-3' : badges.length === 2 ? 'md:grid-cols-2' : ''}`}>
             {badges.map((badge, idx) => (
               <div key={idx} className="p-6">
                 <div className="text-3xl mb-3">{badge.icon}</div>

@@ -89,13 +89,13 @@ export default function OrderDetail() {
   const itemColumns = [
     { key: 'item_name', label: 'Product', render: (r) => <span className="font-medium text-gray-900">{r.item_name}</span> },
     { key: 'quantity', label: 'Qty', render: (r) => <span className="text-center">{r.quantity}</span> },
-    { key: 'unit_price', label: 'Unit Price', render: (r) => <span className="text-gray-600">${Number(r.unit_price).toFixed(2)}</span> },
-    { key: 'line_total', label: 'Total', render: (r) => <span className="font-semibold text-gray-900">${Number(r.line_total).toFixed(2)}</span> },
+    { key: 'unit_price', label: 'Unit Price', render: (r) => <span className="text-gray-600">৳{Number(r.unit_price).toFixed(2)}</span> },
+    { key: 'line_total', label: 'Total', render: (r) => <span className="font-semibold text-gray-900">৳{Number(r.line_total).toFixed(2)}</span> },
   ];
 
   const paymentColumns = [
     { key: 'id', label: 'ID', render: (r) => <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded">{r.id.slice(0, 10)}</span> },
-    { key: 'amount', label: 'Amount', render: (r) => <span className="font-semibold">${Number(r.amount).toFixed(2)}</span> },
+    { key: 'amount', label: 'Amount', render: (r) => <span className="font-semibold">৳{Number(r.amount).toFixed(2)}</span> },
     { key: 'provider', label: 'Provider', render: (r) => <Badge variant="default">{r.provider}</Badge> },
     { key: 'status', label: 'Status', render: (r) => <Badge variant={r.status === 'captured' ? 'success' : 'warning'} dot>{r.status}</Badge> },
     { key: 'created_at', label: 'Date', render: (r) => <span className="text-gray-500">{new Date(r.created_at).toLocaleDateString()}</span> },
@@ -150,17 +150,17 @@ export default function OrderDetail() {
         <Card>
           <div className="p-5">
             <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">Total Amount</p>
-            <p className="text-2xl font-bold text-gray-900">${totalAmount.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-gray-900">৳{totalAmount.toFixed(2)}</p>
             <p className="text-xs text-gray-500 mt-1">{(order.items || []).length} item{(order.items || []).length !== 1 ? 's' : ''}</p>
           </div>
         </Card>
         <Card>
           <div className="p-5">
             <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">Payment Progress</p>
-            <p className="text-2xl font-bold text-emerald-600">${totalPaid.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-emerald-600">৳{totalPaid.toFixed(2)}</p>
             <div className="mt-2">
               <ProgressBar value={totalPaid} max={totalAmount} color={paymentPct >= 100 ? 'emerald' : 'indigo'} />
-              <p className="text-[10px] text-gray-500 mt-1">{paymentPct.toFixed(0)}% of ${totalAmount.toFixed(2)}</p>
+              <p className="text-[10px] text-gray-500 mt-1">{paymentPct.toFixed(0)}% of ৳{totalAmount.toFixed(2)}</p>
             </div>
           </div>
         </Card>
@@ -182,19 +182,19 @@ export default function OrderDetail() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
             <div>
               <p className="text-gray-500 mb-1">Subtotal</p>
-              <p className="font-semibold text-gray-900">${Number(order.subtotal).toFixed(2)}</p>
+              <p className="font-semibold text-gray-900">৳{Number(order.subtotal).toFixed(2)}</p>
             </div>
             <div>
               <p className="text-gray-500 mb-1">Tax</p>
-              <p className="font-semibold text-gray-900">${Number(order.tax_amount).toFixed(2)}</p>
+              <p className="font-semibold text-gray-900">৳{Number(order.tax_amount).toFixed(2)}</p>
             </div>
             <div>
               <p className="text-gray-500 mb-1">Shipping</p>
-              <p className="font-semibold text-gray-900">${Number(order.shipping_amount).toFixed(2)}</p>
+              <p className="font-semibold text-gray-900">৳{Number(order.shipping_amount).toFixed(2)}</p>
             </div>
             <div>
               <p className="text-gray-500 mb-1">Discount</p>
-              <p className="font-semibold text-red-600">-${Number(order.discount_amount).toFixed(2)}</p>
+              <p className="font-semibold text-red-600">-৳{Number(order.discount_amount).toFixed(2)}</p>
             </div>
           </div>
         </div>
@@ -237,7 +237,7 @@ export default function OrderDetail() {
       <Modal open={showPaymentModal} onClose={() => setShowPaymentModal(false)} title="Record Payment" size="sm">
         {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>}
         <form onSubmit={handlePayment}>
-          <FormField label="Amount ($)" hint={`Order total: $${totalAmount.toFixed(2)}`}>
+          <FormField label="Amount (৳)" hint={`Order total: ৳${totalAmount.toFixed(2)}`}>
             <Input type="number" step="0.01" min="0.01" value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} placeholder={totalAmount.toFixed(2)} required />
           </FormField>
           <FormField label="Payment Provider">

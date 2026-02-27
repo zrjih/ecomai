@@ -6,6 +6,7 @@ const variantRepo = require('../repositories/product-variants');
 const websiteRepo = require('../repositories/website-settings');
 const categoryRepo = require('../repositories/categories');
 const catReqRepo = require('../repositories/category-requests');
+const imageRepo = require('../repositories/product-images');
 const customerService = require('../services/customers');
 const orderService = require('../services/orders');
 const paymentService = require('../services/payments');
@@ -45,6 +46,10 @@ router.get('/shops/:slug/products', asyncHandler(async (req, res) => {
     category_id: req.query.category_id,
     status: 'active',
   });
+  // Attach images to each product
+  const ids = result.items.map(p => p.id);
+  const imgMap = await imageRepo.listByProducts(ids, shop.id);
+  result.items = result.items.map(p => ({ ...p, images: imgMap[p.id] || [] }));
   res.json(result);
 }));
 
@@ -58,9 +63,10 @@ router.get('/shops/:slug/products/:productIdOrSlug', asyncHandler(async (req, re
     ? await productRepo.findByIdAndShop(val, shop.id)
     : await productRepo.findBySlugAndShop(val, shop.id);
   if (!product) throw new DomainError('PRODUCT_NOT_FOUND', 'Product not found', 404);
-  // Include variants
+  // Include variants and images
   const variants = await variantRepo.listByProduct(shop.id, product.id);
-  res.json({ ...product, variants });
+  const images = await imageRepo.listByProduct(product.id, shop.id);
+  res.json({ ...product, variants, images });
 }));
 
 // --- Public categories ---

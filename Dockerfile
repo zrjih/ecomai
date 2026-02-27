@@ -11,6 +11,7 @@ RUN bun install --frozen-lockfile 2>/dev/null || bun install
 COPY index.js ./
 COPY src/ ./src/
 COPY db/ ./db/
+COPY tests/ ./tests/
 
 EXPOSE 3000
 

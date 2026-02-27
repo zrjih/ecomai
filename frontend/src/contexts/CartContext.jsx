@@ -1,9 +1,30 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 
 const CartContext = createContext(null);
 
+function getStorageKey(slug) {
+  return `ecomai_cart_${slug || 'default'}`;
+}
+
+function loadCart(slug) {
+  try {
+    const raw = localStorage.getItem(getStorageKey(slug));
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
 export function CartProvider({ children }) {
-  const [items, setItems] = useState([]);
+  // Extract shopSlug from current URL since CartProvider wraps all storefront routes
+  const slug = window.location.pathname.split('/store/')[1]?.split('/')[0] || '';
+  const [items, setItems] = useState(() => loadCart(slug));
+
+  // Persist to localStorage whenever items change
+  useEffect(() => {
+    if (slug) {
+      localStorage.setItem(getStorageKey(slug), JSON.stringify(items));
+    }
+  }, [items, slug]);
 
   const addItem = useCallback((product, variant = null, quantity = 1) => {
     setItems((prev) => {
@@ -23,7 +44,7 @@ export function CartProvider({ children }) {
           name: product.name,
           variant_title: variant?.title || null,
           price: variant ? Number(variant.price) : Number(product.base_price),
-          image: product.media?.[0] || null,
+          image: (product.images?.find(i => i.is_primary) || product.images?.[0])?.url || null,
           quantity,
         },
       ];

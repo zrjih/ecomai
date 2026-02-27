@@ -67,7 +67,7 @@ export default function Orders() {
         </div>
       </div>
     )},
-    { key: 'total_amount', label: 'Total', render: (r) => <span className="font-semibold text-gray-900">${Number(r.total_amount).toFixed(2)}</span> },
+    { key: 'total_amount', label: 'Total', render: (r) => <span className="font-semibold text-gray-900">৳{Number(r.total_amount).toFixed(2)}</span> },
     { key: 'status', label: 'Status', render: (r) => <Badge variant={statusVariant(r.status)} dot>{r.status}</Badge> },
     { key: 'items', label: 'Items', render: (r) => (
       <span className="text-sm text-gray-600">{r.items?.length || 0} item{(r.items?.length || 0) !== 1 ? 's' : ''}</span>
@@ -110,7 +110,7 @@ export default function Orders() {
                     <Select value={item.product_id} onChange={(e) => updateItem(idx, 'product_id', e.target.value)} required>
                       <option value="">Select product...</option>
                       {productList.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name} — ${Number(p.base_price).toFixed(2)}</option>
+                        <option key={p.id} value={p.id}>{p.name} — ৳{Number(p.base_price).toFixed(2)}</option>
                       ))}
                     </Select>
                   </div>

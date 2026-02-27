@@ -54,6 +54,8 @@ services:
       API_URL: http://localhost:3000
       PORT: '3000'
       NODE_ENV: development
+    volumes:
+      - uploads:/app/uploads
 
   # ── Frontend (Vite Dev Server) ─────────────────────────
   frontend:
@@ -69,3 +71,4 @@ services:
 
 volumes:
   pgdata:
+  uploads:
