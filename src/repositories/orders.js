@@ -12,7 +12,6 @@ function createOrder({ shop_id, customer_email, status, subtotal, tax_amount, sh
     discount_amount,
     total_amount,
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
   };
 
   orders.push(order);
@@ -41,16 +40,4 @@ function listItemsByOrder(orderId) {
   return orderItems.filter((entry) => entry.order_id === orderId);
 }
 
-function updateOrder(order, patch) {
-  const allowed = ['status'];
-  allowed.forEach((key) => {
-    if (Object.prototype.hasOwnProperty.call(patch, key)) {
-      order[key] = patch[key];
-    }
-  });
-
-  order.updated_at = new Date().toISOString();
-  return order;
-}
-
-module.exports = { createOrder, addOrderItems, listByShop, findByIdAndShop, listItemsByOrder, updateOrder };
+module.exports = { createOrder, addOrderItems, listByShop, findByIdAndShop, listItemsByOrder };
