@@ -1,4 +1,6 @@
-const { orders, orderItems, products, createId } = require('../store');
+const { orders, orderItems, createId } = require('../store');
+const productRepo = require('../repositories/products');
+const { DomainError } = require('../errors/domain-error');
 
 function calculateTotals(items) {
   const subtotal = items.reduce((sum, item) => sum + Number(item.line_total), 0);
@@ -9,6 +11,33 @@ function calculateTotals(items) {
     discount_amount: 0,
     total_amount: subtotal,
   };
+}
+
+function ensureOrderExists(shopId, orderId) {
+  const order = orders.find((o) => o.id === orderId && o.shop_id === shopId);
+  if (!order) {
+    throw new DomainError('ORDER_NOT_FOUND', 'Order not found', 404);
+  }
+  return order;
+}
+
+function getOrder(shopId, orderId) {
+  const order = ensureOrderExists(shopId, orderId);
+  return {
+    ...order,
+    items: orderItems.filter((item) => item.order_id === order.id),
+  };
+}
+
+function updateOrderStatus(shopId, orderId, status) {
+  const order = ensureOrderExists(shopId, orderId);
+  const VALID = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
+  if (!VALID.includes(status)) {
+    throw new DomainError('INVALID_STATUS', `status must be one of: ${VALID.join(', ')}`, 400);
+  }
+  order.status = status;
+  order.updated_at = new Date().toISOString();
+  return order;
 }
 
 function createOrder({ shopId, customer_email, items }) {
@@ -66,4 +95,4 @@ function listOrdersByShop(shopId) {
     }));
 }
 
-module.exports = { createOrder, listOrdersByShop };
+module.exports = { createOrder, listOrdersByShop, ensureOrderExists, getOrder, updateOrderStatus };

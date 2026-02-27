@@ -48,4 +48,42 @@ function updateDeliveryStatus({ shopId, deliveryRequestId, status }) {
   return request;
 }
 
-module.exports = { createDeliveryRequest, listDeliveryRequests, updateDeliveryStatus };
+module.exports = { createDeliveryRequest, listDeliveryRequests, updateDeliveryStatus, listDriverAssignments, driverPostLocation, driverUpdateStatus };
+
+function listDriverAssignments(driverUserId) {
+  return deliveryRepo.listByShop(null).filter(
+    (d) => d.assigned_driver_user_id === driverUserId
+  );
+}
+
+function driverPostLocation({ driverUserId, deliveryRequestId, lat, lng }) {
+  const all = deliveryRepo.listByShop(null);
+  const request = all.find(
+    (d) => d.id === deliveryRequestId && d.assigned_driver_user_id === driverUserId
+  );
+  if (!request) {
+    throw new DomainError('DELIVERY_NOT_FOUND', 'delivery request not found or not assigned to you', 404);
+  }
+  if (!request.metadata) request.metadata = {};
+  request.metadata.last_location = { lat, lng, updated_at: new Date().toISOString() };
+  return request;
+}
+
+function driverUpdateStatus({ driverUserId, deliveryRequestId, status }) {
+  const all = deliveryRepo.listByShop(null);
+  const request = all.find(
+    (d) => d.id === deliveryRequestId && d.assigned_driver_user_id === driverUserId
+  );
+  if (!request) {
+    throw new DomainError('DELIVERY_NOT_FOUND', 'delivery request not found or not assigned to you', 404);
+  }
+  if (!ALLOWED_STATUSES.includes(status)) {
+    throw new DomainError('INVALID_STATUS', `status must be one of: ${ALLOWED_STATUSES.join(', ')}`, 400);
+  }
+  request.status = status;
+  request.updated_at = new Date().toISOString();
+  if (status === 'delivered') {
+    request.delivered_at = request.updated_at;
+  }
+  return request;
+}

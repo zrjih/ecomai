@@ -18,6 +18,7 @@ function createDeliveryRequest({ shopId, orderId, provider, pickup_address, drop
 }
 
 function listByShop(shopId) {
+  if (!shopId) return [...deliveryRequests];
   return deliveryRequests.filter((entry) => entry.shop_id === shopId);
 }
 

@@ -1,29 +1,36 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
-const { users } = require('../store');
-const { jwtSecret } = require('../config');
+const authService = require('../services/auth');
+const { DomainError } = require('../errors/domain-error');
 
 const router = express.Router();
 
 router.post('/login', (req, res) => {
-  const { email, password } = req.body;
-  const user = users.find((u) => u.email === email && u.password === password);
-
-  if (!user) {
-    return res.status(401).json({ message: 'Invalid credentials' });
+  try {
+    const tokens = authService.login(req.body.email, req.body.password);
+    return res.json(tokens);
+  } catch (err) {
+    if (err instanceof DomainError) {
+      return res.status(err.status).json({ code: err.code, message: err.message });
+    }
+    return res.status(500).json({ message: 'Login failed' });
   }
+});
 
-  const accessToken = jwt.sign(
-    {
-      sub: user.id,
-      role: user.role,
-      shop_id: user.shopId,
-    },
-    jwtSecret,
-    { expiresIn: '15m' }
-  );
+router.post('/refresh', (req, res) => {
+  try {
+    const tokens = authService.refresh(req.body.refreshToken);
+    return res.json(tokens);
+  } catch (err) {
+    if (err instanceof DomainError) {
+      return res.status(err.status).json({ code: err.code, message: err.message });
+    }
+    return res.status(500).json({ message: 'Refresh failed' });
+  }
+});
 
-  return res.json({ accessToken, tokenType: 'Bearer' });
+router.post('/logout', (req, res) => {
+  const result = authService.logout(req.body.refreshToken);
+  return res.json(result);
 });
 
 module.exports = router;
