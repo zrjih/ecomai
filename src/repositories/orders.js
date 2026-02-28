@@ -116,8 +116,15 @@ async function countByShop(shopId) {
   return parseInt(res.rows[0].count, 10);
 }
 
+async function deleteOrder(orderId) {
+  // Delete order items first, then the order
+  await db.query('DELETE FROM order_items WHERE order_id = $1', [orderId]);
+  const res = await db.query('DELETE FROM orders WHERE id = $1 RETURNING *', [orderId]);
+  return res.rows[0] || null;
+}
+
 module.exports = {
   createOrder, addOrderItems, listByShop, findByIdAndShop,
-  listItemsByOrder, updateOrder, findById, listByCustomer, countByShop,
+  listItemsByOrder, updateOrder, findById, listByCustomer, countByShop, deleteOrder,
 };
 

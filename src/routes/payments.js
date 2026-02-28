@@ -48,12 +48,18 @@ router.post('/sslcommerz/ipn', asyncHandler(async (req, res) => {
 router.use(authRequired, requireRoles(['super_admin', 'shop_admin', 'shop_user']), resolveTenant, requireTenantContext);
 
 router.get('/', asyncHandler(async (req, res) => {
-  const result = await paymentService.listPayments(req.tenantShopId, {
+  const isSuperAdmin = req.auth.role === 'super_admin';
+  const opts = {
     page: Number(req.query.page) || 1,
     limit: Number(req.query.limit) || 50,
     status: req.query.status,
     search: req.query.search,
-  });
+  };
+  if (isSuperAdmin && req.query.all === 'true') {
+    const result = await paymentService.listPayments(null, opts);
+    return res.json(result);
+  }
+  const result = await paymentService.listPayments(req.tenantShopId, opts);
   res.json(result);
 }));
 
@@ -72,8 +78,23 @@ router.post('/manual', validateBody({
 }));
 
 router.get('/:paymentId', asyncHandler(async (req, res) => {
-  const payment = await paymentService.getPayment(req.tenantShopId, req.params.paymentId);
+  const shopId = req.auth.role === 'super_admin' ? null : req.tenantShopId;
+  const payment = await paymentService.getPayment(shopId, req.params.paymentId);
   res.json(payment);
+}));
+
+// Update payment (status, method)
+router.patch('/:paymentId', asyncHandler(async (req, res) => {
+  const shopId = req.auth.role === 'super_admin' ? null : req.tenantShopId;
+  const payment = await paymentService.updatePaymentDetails(shopId, req.params.paymentId, req.body);
+  res.json(payment);
+}));
+
+// Delete payment (pending only)
+router.delete('/:paymentId', asyncHandler(async (req, res) => {
+  const shopId = req.auth.role === 'super_admin' ? null : req.tenantShopId;
+  await paymentService.deletePayment(shopId, req.params.paymentId);
+  res.json({ message: 'Payment deleted' });
 }));
 
 router.post('/:paymentId/refunds', validateBody({

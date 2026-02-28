@@ -96,5 +96,10 @@ async function listByDriver(driverUserId, { page = 1, limit = 50, status } = {})
   return { items: res.rows, total, page, limit, totalPages: Math.ceil(total / limit) };
 }
 
-module.exports = { createDeliveryRequest, findById, findByIdAndShop, findByOrderAndShop, updateDeliveryRequest, listByShop, listByDriver };
+async function deleteDeliveryRequest(requestId) {
+  const res = await db.query('DELETE FROM delivery_requests WHERE id = $1 RETURNING *', [requestId]);
+  return res.rows[0] || null;
+}
+
+module.exports = { createDeliveryRequest, findById, findByIdAndShop, findByOrderAndShop, updateDeliveryRequest, deleteDeliveryRequest, listByShop, listByDriver };
 

@@ -10,13 +10,35 @@ const router = express.Router();
 router.use(authRequired, requireRoles(['super_admin', 'shop_admin', 'shop_user']), resolveTenant, requireTenantContext);
 
 router.get('/', asyncHandler(async (req, res) => {
-  const result = await deliveryService.listDeliveryRequests(req.tenantShopId, {
+  const isSuperAdmin = req.auth.role === 'super_admin';
+  const opts = {
     page: Number(req.query.page) || 1,
     limit: Number(req.query.limit) || 50,
     status: req.query.status,
     search: req.query.search,
+  };
+  if (isSuperAdmin && req.query.all === 'true') {
+    const result = await deliveryService.listDeliveryRequests(null, opts);
+    return res.json(result);
+  }
+  const result = await deliveryService.listDeliveryRequests(req.tenantShopId, opts);
+  res.json(result);
+}));
+
+// ── Admin: view assignments for a specific driver ──
+router.get('/by-driver/:driverUserId', asyncHandler(async (req, res) => {
+  const result = await deliveryService.listDriverAssignments(req.params.driverUserId, {
+    page: Number(req.query.page) || 1,
+    limit: Number(req.query.limit) || 50,
+    status: req.query.status,
   });
   res.json(result);
+}));
+
+router.get('/:deliveryRequestId', asyncHandler(async (req, res) => {
+  const shopId = req.auth.role === 'super_admin' ? null : req.tenantShopId;
+  const request = await deliveryService.getDeliveryRequest(shopId, req.params.deliveryRequestId);
+  res.json(request);
 }));
 
 router.post('/', validateBody({
@@ -50,6 +72,12 @@ router.patch('/:deliveryRequestId/assign', validateBody({
     shopId: req.tenantShopId, deliveryRequestId: req.params.deliveryRequestId, driverUserId: req.body.driver_user_id,
   });
   res.json(request);
+}));
+
+router.delete('/:deliveryRequestId', asyncHandler(async (req, res) => {
+  const shopId = req.auth.role === 'super_admin' ? null : req.tenantShopId;
+  await deliveryService.deleteDeliveryRequest(shopId, req.params.deliveryRequestId);
+  res.json({ message: 'Delivery request deleted' });
 }));
 
 module.exports = router;

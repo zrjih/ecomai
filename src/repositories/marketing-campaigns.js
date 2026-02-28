@@ -73,5 +73,10 @@ async function listByShop(shopId, { page = 1, limit = 50, status, type, search }
   return { items: res.rows, total, page, limit, totalPages: Math.ceil(total / limit) };
 }
 
-module.exports = { createCampaign, findById, findByIdAndShop, updateCampaign, listByShop };
+async function deleteCampaign(campaignId) {
+  const res = await db.query('DELETE FROM marketing_campaigns WHERE id = $1 RETURNING *', [campaignId]);
+  return res.rows[0] || null;
+}
+
+module.exports = { createCampaign, findById, findByIdAndShop, updateCampaign, deleteCampaign, listByShop };
 

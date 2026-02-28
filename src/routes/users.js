@@ -51,6 +51,12 @@ router.get('/all', requireRoles(['super_admin']), asyncHandler(async (req, res) 
   res.json(result);
 }));
 
+// ── Get single user by ID (super_admin only) ──
+router.get('/:userId', requireRoles(['super_admin']), asyncHandler(async (req, res) => {
+  const user = await usersService.getUserById(req.params.userId);
+  res.json(user);
+}));
+
 router.patch('/:userId', requireRoles(['super_admin']), asyncHandler(async (req, res) => {
   const updated = await usersService.updateUser(req.params.userId, req.body);
   res.json(updated);

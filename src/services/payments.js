@@ -174,6 +174,23 @@ async function getPayment(shopId, paymentId) {
   return payment;
 }
 
+async function updatePaymentDetails(shopId, paymentId, patch) {
+  const payment = await getPayment(shopId, paymentId);
+  const safePatch = {};
+  if (patch.status !== undefined) safePatch.status = patch.status;
+  if (patch.method !== undefined) safePatch.method = patch.method;
+  if (shopId) safePatch._shopId = shopId;
+  return paymentRepo.updatePayment(payment.id, safePatch);
+}
+
+async function deletePayment(shopId, paymentId) {
+  const payment = await getPayment(shopId, paymentId);
+  if (!['pending', 'failed', 'cancelled'].includes(payment.status)) {
+    throw new DomainError('INVALID_STATE', 'can only delete pending, failed or cancelled payments', 400);
+  }
+  return paymentRepo.deletePayment(paymentId);
+}
+
 async function createRefund({ shopId, paymentId, amount, reason }) {
   const payment = await getPayment(shopId, paymentId);
   const existingRefunds = await paymentRepo.listRefundsByPayment(paymentId);
@@ -190,5 +207,5 @@ async function createRefund({ shopId, paymentId, amount, reason }) {
 
 module.exports = {
   initiatePayment, handleSSLCommerzCallback, createManualPayment,
-  listPayments, listPaymentsByOrder, getPayment, createRefund,
+  listPayments, listPaymentsByOrder, getPayment, updatePaymentDetails, deletePayment, createRefund,
 };

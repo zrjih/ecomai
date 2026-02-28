@@ -42,4 +42,12 @@ async function updateCampaign(shopId, campaignId, patch) {
   return campaignRepo.updateCampaign(campaignId, shopId, patch);
 }
 
-module.exports = { createCampaign, createAIDraftCampaign, listCampaigns, getCampaign, updateCampaign };
+async function deleteCampaign(shopId, campaignId) {
+  const campaign = await getCampaign(shopId, campaignId);
+  if (!['draft', 'cancelled'].includes(campaign.status)) {
+    throw new DomainError('INVALID_STATE', 'can only delete draft or cancelled campaigns', 400);
+  }
+  return campaignRepo.deleteCampaign(campaignId);
+}
+
+module.exports = { createCampaign, createAIDraftCampaign, listCampaigns, getCampaign, updateCampaign, deleteCampaign };

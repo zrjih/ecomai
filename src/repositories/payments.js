@@ -98,5 +98,12 @@ async function listRefundsByPayment(paymentId) {
   return res.rows;
 }
 
-module.exports = { createPayment, findById, findByIdAndShop, findByTranId, updatePayment, listByShop, listByOrder, createRefund, listRefundsByPayment };
+async function deletePayment(paymentId) {
+  // Delete associated refunds first, then the payment
+  await db.query('DELETE FROM refunds WHERE payment_id = $1', [paymentId]);
+  const res = await db.query('DELETE FROM payments WHERE id = $1 RETURNING *', [paymentId]);
+  return res.rows[0] || null;
+}
+
+module.exports = { createPayment, findById, findByIdAndShop, findByTranId, updatePayment, listByShop, listByOrder, createRefund, listRefundsByPayment, deletePayment };
 

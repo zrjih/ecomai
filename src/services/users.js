@@ -20,6 +20,12 @@ async function getMe(userId) {
   return { id: user.id, email: user.email, role: user.role, shop_id: user.shop_id, full_name: user.full_name };
 }
 
+async function getUserById(userId) {
+  const user = await userRepo.findById(userId);
+  if (!user) throw new DomainError('USER_NOT_FOUND', 'User not found', 404);
+  return sanitizeUser(user);
+}
+
 async function createUser({ actorRole, email, password, role, shopId, full_name, phone }) {
   if (!email || !password || !role) {
     throw new DomainError('VALIDATION_ERROR', 'email, password and role are required', 400);
@@ -93,4 +99,4 @@ async function deleteUser(userId) {
   return { deleted: true };
 }
 
-module.exports = { getMe, createUser, listUsers, listAllUsers, updateUser, deleteUser };
+module.exports = { getMe, getUserById, createUser, listUsers, listAllUsers, updateUser, deleteUser };

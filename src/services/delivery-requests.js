@@ -25,6 +25,21 @@ async function listDeliveryRequests(shopId, opts) {
   return deliveryRepo.listByShop(shopId, opts);
 }
 
+async function getDeliveryRequest(shopId, deliveryRequestId) {
+  const request = await deliveryRepo.findByIdAndShop(deliveryRequestId, shopId);
+  if (!request) throw new DomainError('DELIVERY_NOT_FOUND', 'delivery request not found', 404);
+  return request;
+}
+
+async function deleteDeliveryRequest(shopId, deliveryRequestId) {
+  const request = await deliveryRepo.findByIdAndShop(deliveryRequestId, shopId);
+  if (!request) throw new DomainError('DELIVERY_NOT_FOUND', 'delivery request not found', 404);
+  if (!['pending', 'cancelled'].includes(request.status)) {
+    throw new DomainError('INVALID_STATE', 'can only delete pending or cancelled delivery requests', 400);
+  }
+  return deliveryRepo.deleteDeliveryRequest(deliveryRequestId);
+}
+
 async function updateDeliveryStatus({ shopId, deliveryRequestId, status }) {
   const request = await deliveryRepo.findByIdAndShop(deliveryRequestId, shopId);
   if (!request) throw new DomainError('DELIVERY_NOT_FOUND', 'delivery request not found', 404);
@@ -69,6 +84,7 @@ async function driverUpdateStatus({ driverUserId, deliveryRequestId, status }) {
 }
 
 module.exports = {
-  createDeliveryRequest, listDeliveryRequests, updateDeliveryStatus, assignDriver,
+  createDeliveryRequest, listDeliveryRequests, getDeliveryRequest, deleteDeliveryRequest,
+  updateDeliveryStatus, assignDriver,
   listDriverAssignments, driverPostLocation, driverUpdateStatus,
 };

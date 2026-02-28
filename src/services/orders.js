@@ -187,8 +187,27 @@ async function listOrdersByShop(shopId, opts) {
   return orderRepo.listByShop(shopId, opts);
 }
 
+async function updateOrder(shopId, orderId, patch) {
+  await ensureOrderExists(shopId, orderId);
+  // Only allow safe fields
+  const safePatch = {};
+  const ALLOWED = ['notes', 'shipping_address', 'payment_status'];
+  for (const k of ALLOWED) {
+    if (patch[k] !== undefined) safePatch[k] = patch[k];
+  }
+  return orderRepo.updateOrder(orderId, shopId, safePatch);
+}
+
+async function deleteOrder(shopId, orderId) {
+  const order = await ensureOrderExists(shopId, orderId);
+  if (!['pending', 'cancelled'].includes(order.status)) {
+    throw new DomainError('INVALID_STATE', 'can only delete pending or cancelled orders', 400);
+  }
+  return orderRepo.deleteOrder(orderId);
+}
+
 async function listOrdersByCustomer(customerId, opts) {
   return orderRepo.listByCustomer(customerId, opts);
 }
 
-module.exports = { createOrder, listOrdersByShop, listOrdersByCustomer, ensureOrderExists, getOrder, updateOrderStatus };
+module.exports = { createOrder, listOrdersByShop, listOrdersByCustomer, ensureOrderExists, getOrder, updateOrderStatus, updateOrder, deleteOrder };

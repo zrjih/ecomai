@@ -12,17 +12,24 @@ const router = express.Router();
 router.use(authRequired, requireRoles(['super_admin', 'shop_admin', 'shop_user']), resolveTenant, requireTenantContext);
 
 router.get('/', asyncHandler(async (req, res) => {
-  const result = await orderService.listOrdersByShop(req.tenantShopId, {
+  const isSuperAdmin = req.auth.role === 'super_admin';
+  const opts = {
     page: Number(req.query.page) || 1,
     limit: Number(req.query.limit) || 50,
     status: req.query.status,
     search: req.query.search,
-  });
+  };
+  if (isSuperAdmin && req.query.all === 'true') {
+    const result = await orderService.listOrdersByShop(null, opts);
+    return res.json(result);
+  }
+  const result = await orderService.listOrdersByShop(req.tenantShopId, opts);
   res.json(result);
 }));
 
 router.get('/:orderId', asyncHandler(async (req, res) => {
-  const order = await orderService.getOrder(req.tenantShopId, req.params.orderId);
+  const shopId = req.auth.role === 'super_admin' ? null : req.tenantShopId;
+  const order = await orderService.getOrder(shopId, req.params.orderId);
   res.json(order);
 }));
 
@@ -45,6 +52,20 @@ router.patch('/:orderId/status', validateBody({
 }), asyncHandler(async (req, res) => {
   const order = await orderService.updateOrderStatus(req.tenantShopId, req.params.orderId, req.body.status);
   res.json(order);
+}));
+
+// General order update (notes, shipping_address, etc.)
+router.patch('/:orderId', asyncHandler(async (req, res) => {
+  const shopId = req.auth.role === 'super_admin' ? null : req.tenantShopId;
+  const order = await orderService.updateOrder(shopId, req.params.orderId, req.body);
+  res.json(order);
+}));
+
+// Delete order (only pending/cancelled)
+router.delete('/:orderId', asyncHandler(async (req, res) => {
+  const shopId = req.auth.role === 'super_admin' ? null : req.tenantShopId;
+  await orderService.deleteOrder(shopId, req.params.orderId);
+  res.json({ message: 'Order deleted' });
 }));
 
 router.post('/:orderId/delivery-requests', asyncHandler(async (req, res) => {

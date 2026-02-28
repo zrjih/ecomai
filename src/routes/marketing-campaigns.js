@@ -11,18 +11,25 @@ const router = express.Router();
 router.use(authRequired, requireRoles(['super_admin', 'shop_admin', 'shop_user']), resolveTenant, requireTenantContext);
 
 router.get('/', asyncHandler(async (req, res) => {
-  const result = await campaignService.listCampaigns(req.tenantShopId, {
+  const isSuperAdmin = req.auth.role === 'super_admin';
+  const opts = {
     page: Number(req.query.page) || 1,
     limit: Number(req.query.limit) || 50,
     status: req.query.status,
     type: req.query.type,
     search: req.query.search,
-  });
+  };
+  if (isSuperAdmin && req.query.all === 'true') {
+    const result = await campaignService.listCampaigns(null, opts);
+    return res.json(result);
+  }
+  const result = await campaignService.listCampaigns(req.tenantShopId, opts);
   res.json(result);
 }));
 
 router.get('/:campaignId', asyncHandler(async (req, res) => {
-  const campaign = await campaignService.getCampaign(req.tenantShopId, req.params.campaignId);
+  const shopId = req.auth.role === 'super_admin' ? null : req.tenantShopId;
+  const campaign = await campaignService.getCampaign(shopId, req.params.campaignId);
   res.json(campaign);
 }));
 
@@ -45,8 +52,15 @@ router.post('/generate-draft', asyncHandler(async (req, res) => {
 }));
 
 router.patch('/:campaignId', asyncHandler(async (req, res) => {
-  const campaign = await campaignService.updateCampaign(req.tenantShopId, req.params.campaignId, req.body);
+  const shopId = req.auth.role === 'super_admin' ? null : req.tenantShopId;
+  const campaign = await campaignService.updateCampaign(shopId, req.params.campaignId, req.body);
   res.json(campaign);
+}));
+
+router.delete('/:campaignId', asyncHandler(async (req, res) => {
+  const shopId = req.auth.role === 'super_admin' ? null : req.tenantShopId;
+  await campaignService.deleteCampaign(shopId, req.params.campaignId);
+  res.json({ message: 'Campaign deleted' });
 }));
 
 module.exports = router;
