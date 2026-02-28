@@ -47,6 +47,11 @@ import StoreLogin from './storefront/pages/StoreLogin';
 import StoreRegister from './storefront/pages/StoreRegister';
 import StoreAccount from './storefront/pages/StoreAccount';
 import StorePolicy from './storefront/pages/StorePolicy';
+import StoreWishlist from './storefront/pages/StoreWishlist';
+import StoreForgotPassword from './storefront/pages/StoreForgotPassword';
+import StoreResetPassword from './storefront/pages/StoreResetPassword';
+import Store404 from './storefront/pages/Store404';
+import StoreCategory from './storefront/pages/StoreCategory';
 import CheckoutSuccess from './storefront/pages/CheckoutSuccess';
 import CheckoutFail from './storefront/pages/CheckoutFail';
 import CheckoutCancel from './storefront/pages/CheckoutCancel';
@@ -74,6 +79,8 @@ function StorefrontWrapper() {
           <Route index element={<StoreHome />} />
           <Route path="products" element={<StoreProducts />} />
           <Route path="products/:productId" element={<StoreProductDetail />} />
+          <Route path="categories" element={<StoreCategory />} />
+          <Route path="categories/:categoryId" element={<StoreCategory />} />
           <Route path="cart" element={<StoreCart />} />
           <Route path="checkout" element={<StoreCheckout />} />
           <Route path="checkout/success" element={<CheckoutSuccess />} />
@@ -81,8 +88,12 @@ function StorefrontWrapper() {
           <Route path="checkout/cancel" element={<CheckoutCancel />} />
           <Route path="auth/login" element={<StoreLogin />} />
           <Route path="auth/register" element={<StoreRegister />} />
+          <Route path="auth/forgot-password" element={<StoreForgotPassword />} />
+          <Route path="auth/reset-password" element={<StoreResetPassword />} />
           <Route path="account" element={<StoreAccount />} />
+          <Route path="wishlist" element={<StoreWishlist />} />
           <Route path="policy/:type" element={<StorePolicy />} />
+          <Route path="*" element={<Store404 />} />
         </Route>
       </Routes>
     </CartProvider>

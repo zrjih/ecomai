@@ -204,6 +204,25 @@ export default function StorefrontLayout() {
   const cssVars = tokensToCssVars(resolved);
   const fontsUrl = getGoogleFontsUrl(resolved);
 
+  /* ── Live Preview: listen for postMessage from WebsiteSettings ── */
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.data?.type === 'ecomai_preview' && e.data.tokens) {
+        const preview = e.data.tokens;
+        const root = document.querySelector('.storefront');
+        if (!root) return;
+        Object.entries(preview).forEach(([key, value]) => {
+          const varName = `--store-${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
+          root.style.setProperty(varName, value);
+        });
+        if (preview.fontFamily) root.style.setProperty('--font-family', preview.fontFamily);
+        if (preview.headingFont) root.style.setProperty('--heading-font', preview.headingFont);
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
   const navLinks = (nav.nav && nav.nav.length > 0) ? nav.nav.map(l => ({ ...l, to: l.url || l.to })) : [
     { label: 'Home', to: `/store/${shopSlug}` },
     { label: 'Products', to: `/store/${shopSlug}/products` },
@@ -222,11 +241,16 @@ export default function StorefrontLayout() {
       `}</style>
 
       {/* Announcement Bar */}
-      {announcement?.enabled && announcement?.text && (
-        <div className="text-center text-sm font-medium py-2 px-4" style={{ backgroundColor: announcement.bg_color || '#4f46e5', color: announcement.text_color || '#ffffff' }}>
-          {announcement.link ? <Link to={announcement.link} className="hover:underline">{announcement.text}</Link> : <span>{announcement.text}</span>}
-        </div>
-      )}
+      {announcement?.enabled && announcement?.text && (() => {
+        const now = Date.now();
+        if (announcement.start_date && new Date(announcement.start_date).getTime() > now) return null;
+        if (announcement.end_date && new Date(announcement.end_date).getTime() < now) return null;
+        return (
+          <div className="text-center text-sm font-medium py-2 px-4" style={{ backgroundColor: announcement.bg_color || '#4f46e5', color: announcement.text_color || '#ffffff' }}>
+            {announcement.link ? <Link to={announcement.link} className="hover:underline">{announcement.text}</Link> : <span>{announcement.text}</span>}
+          </div>
+        );
+      })()}
 
       {/* Countdown Timer */}
       {countdown?.enabled && countdown?.end_date && new Date(countdown.end_date) > new Date() && (

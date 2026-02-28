@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { websiteSettings, shops, products as productsApi } from '../api';
 import { useAuth } from '../contexts/AuthContext';
-import { templates, resolveTokens } from '../storefront/templates';
+import { templates, resolveTokens, fontPairings, colorPresets } from '../storefront/templates';
 import { PageHeader, Card, Button, FormField, Input, Textarea } from '../components/UI';
 
 const TEMPLATE_LIST = Object.values(templates);
@@ -147,6 +147,10 @@ export default function WebsiteSettings() {
   const [minOrderAmount, setMinOrderAmount] = useState('');
   const [guestCheckout, setGuestCheckout] = useState(true);
   const [cookieConsent, setCookieConsent] = useState(false);
+  const [shippingDisplay, setShippingDisplay] = useState('free');
+  const [flatShippingRate, setFlatShippingRate] = useState('');
+  const [freeShippingThreshold, setFreeShippingThreshold] = useState('');
+  const [shippingCustomText, setShippingCustomText] = useState('');
 
   /* ── Policies ── */
   const [storePolicies, setStorePolicies] = useState({ return_policy: '', privacy_policy: '', terms: '', about_us: '' });
@@ -271,6 +275,10 @@ export default function WebsiteSettings() {
         setMinOrderAmount(sc.min_order_amount || '');
         setGuestCheckout(sc.guest_checkout !== false);
         setCookieConsent(!!sc.cookie_consent);
+        setShippingDisplay(sc.shipping_display || 'free');
+        setFlatShippingRate(sc.flat_shipping_rate || '');
+        setFreeShippingThreshold(sc.free_shipping_threshold || '');
+        setShippingCustomText(sc.shipping_custom_text || '');
 
         // Analytics
         const an = data.analytics || {};
@@ -363,6 +371,10 @@ export default function WebsiteSettings() {
           min_order_amount: minOrderAmount ? Number(minOrderAmount) : undefined,
           guest_checkout: guestCheckout,
           cookie_consent: cookieConsent,
+          shipping_display: shippingDisplay,
+          flat_shipping_rate: flatShippingRate ? Number(flatShippingRate) : undefined,
+          free_shipping_threshold: freeShippingThreshold ? Number(freeShippingThreshold) : undefined,
+          shipping_custom_text: shippingCustomText || undefined,
         },
         analytics: { ga4_id: ga4Id || undefined, fb_pixel_id: fbPixelId || undefined, gtm_id: gtmId || undefined },
         popup_config: {
@@ -394,6 +406,14 @@ export default function WebsiteSettings() {
 
   const updateToken = (key, value) => setTokenOverrides(prev => ({ ...prev, [key]: value }));
   const resetToken = (key) => setTokenOverrides(prev => { const n = { ...prev }; delete n[key]; return n; });
+
+  /* ── Live Preview via postMessage ── */
+  useEffect(() => {
+    if (!iframeRef.current?.contentWindow) return;
+    try {
+      iframeRef.current.contentWindow.postMessage({ type: 'ecomai_preview', tokens: resolved, template: selectedTemplate }, '*');
+    } catch {}
+  }, [resolved, selectedTemplate]);
 
   /* ── Loading ── */
   if (loading) {
@@ -651,6 +671,32 @@ export default function WebsiteSettings() {
           {/* ════════════ COLORS & FONTS ════════════ */}
           {activeTab === 'colors' && (
             <>
+              {/* Color Presets */}
+              {colorPresets[selectedTemplate] && (
+                <Card>
+                  <div className="p-5">
+                    <h3 className="font-semibold text-gray-900 mb-1">Quick Color Schemes</h3>
+                    <p className="text-xs text-gray-500 mb-3">One-click preset palettes for {templates[selectedTemplate]?.name || selectedTemplate}.</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {colorPresets[selectedTemplate].map((preset, i) => {
+                        const isActive = ['primary','secondary','accent','bg','surface','text'].every(k => resolved[k] === preset[k]);
+                        return (
+                          <button key={i} onClick={() => setTokenOverrides(prev => ({ ...prev, primary: preset.primary, secondary: preset.secondary, accent: preset.accent, bg: preset.bg, surface: preset.surface, text: preset.text }))}
+                            className={`text-left p-3 rounded-lg border-2 transition-all hover:shadow-sm ${isActive ? 'border-primary-500 bg-primary-50/50 ring-1 ring-primary-200' : 'border-gray-200 hover:border-gray-300'}`}>
+                            <div className="flex gap-1 mb-2">
+                              {[preset.primary, preset.secondary, preset.accent, preset.bg, preset.surface].map((c, j) => (
+                                <div key={j} className="w-5 h-5 rounded-md border border-gray-200" style={{ backgroundColor: c }} />
+                              ))}
+                            </div>
+                            <p className="text-xs font-medium text-gray-700">{preset.name}</p>
+                            {isActive && <span className="text-[10px] text-primary-600 font-medium">Active</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </Card>
+              )}
               <Card>
                 <div className="p-5">
                   <div className="flex items-center justify-between mb-4">
@@ -675,12 +721,29 @@ export default function WebsiteSettings() {
                   </div>
                 </div>
               </Card>
+              {/* Font Pairing Selector */}
               <Card>
                 <div className="p-5">
-                  <h3 className="font-semibold text-gray-900 mb-1">Typography & Shapes</h3>
+                  <h3 className="font-semibold text-gray-900 mb-1">Font Pairing</h3>
+                  <p className="text-xs text-gray-500 mb-3">Choose a pre-built font combination or customize below.</p>
+                  <div className="grid grid-cols-2 gap-2 mb-4">
+                    {fontPairings.map(fp => {
+                      const isActive = resolved.fontFamily === fp.body && resolved.headingFont === fp.heading;
+                      return (
+                        <button key={fp.id} onClick={() => setTokenOverrides(prev => ({ ...prev, fontFamily: fp.body, headingFont: fp.heading }))}
+                          className={`text-left p-3 rounded-lg border-2 transition-all hover:shadow-sm ${isActive ? 'border-primary-500 bg-primary-50/50 ring-1 ring-primary-200' : 'border-gray-200 hover:border-gray-300'}`}>
+                          <p className="text-sm font-semibold text-gray-800" style={{ fontFamily: fp.heading }}>{fp.name}</p>
+                          <p className="text-[11px] text-gray-400 mt-0.5 truncate" style={{ fontFamily: fp.body }}>Body: {fp.body.split(',')[0].replace(/'/g, '')}</p>
+                          {isActive && <span className="text-[10px] text-primary-600 font-medium mt-1 inline-block">Active</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-1 mt-4">Typography & Shapes</h3>
                   <p className="text-xs text-gray-500 mb-4">Leave blank to use template defaults.</p>
                   <div className="space-y-3">
-                    <FormField label="Font Family"><Input value={tokenOverrides.fontFamily || ''} onChange={e => updateToken('fontFamily', e.target.value)} placeholder={currentDefaults.fontFamily} /></FormField>
+                    <FormField label="Body Font"><Input value={tokenOverrides.fontFamily || ''} onChange={e => updateToken('fontFamily', e.target.value)} placeholder={currentDefaults.fontFamily} /></FormField>
+                    <FormField label="Heading Font"><Input value={tokenOverrides.headingFont || ''} onChange={e => updateToken('headingFont', e.target.value)} placeholder={currentDefaults.headingFont} /></FormField>
                     <div className="grid grid-cols-2 gap-3">
                       <FormField label="Border Radius"><Input value={tokenOverrides.radius || ''} onChange={e => updateToken('radius', e.target.value)} placeholder={currentDefaults.radius} /></FormField>
                       <FormField label="Button Radius"><Input value={tokenOverrides.buttonRadius || ''} onChange={e => updateToken('buttonRadius', e.target.value)} placeholder={currentDefaults.buttonRadius} /></FormField>
@@ -813,6 +876,15 @@ export default function WebsiteSettings() {
                   <div className="space-y-3">
                     <FormField label="Announcement Text"><Input value={announcement.text} onChange={e => setAnnouncement({ ...announcement, text: e.target.value })} placeholder="🎉 Free shipping on orders over $50!" /></FormField>
                     <FormField label="Link (optional)"><Input value={announcement.link} onChange={e => setAnnouncement({ ...announcement, link: e.target.value })} placeholder="/products or https://..." /></FormField>
+                    <div className="grid grid-cols-2 gap-3">
+                      <FormField label="Start Date (optional)">
+                        <input type="datetime-local" value={announcement.start_date || ''} onChange={e => setAnnouncement({ ...announcement, start_date: e.target.value })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" />
+                      </FormField>
+                      <FormField label="End Date (optional)">
+                        <input type="datetime-local" value={announcement.end_date || ''} onChange={e => setAnnouncement({ ...announcement, end_date: e.target.value })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" />
+                      </FormField>
+                    </div>
+                    <p className="text-[11px] text-gray-400">Leave dates empty to show the announcement indefinitely.</p>
                     <div className="grid grid-cols-2 gap-3">
                       <FormField label="Background Color">
                         <div className="flex items-center gap-2">
@@ -962,6 +1034,39 @@ export default function WebsiteSettings() {
                     <FormField label="Minimum Order Amount (optional)"><Input type="number" min="0" step="0.01" value={minOrderAmount} onChange={e => setMinOrderAmount(e.target.value)} placeholder="No minimum" /></FormField>
                     <Toggle checked={guestCheckout} onChange={setGuestCheckout} label="Allow guest checkout (no login required)" />
                     <Toggle checked={cookieConsent} onChange={setCookieConsent} label="Show cookie consent banner" />
+                  </div>
+                </div>
+              </Card>
+              <Card>
+                <div className="p-5">
+                  <h3 className="font-semibold text-gray-900 mb-1">Shipping Display</h3>
+                  <p className="text-xs text-gray-500 mb-4">How shipping cost is shown to customers.</p>
+                  <div className="space-y-3">
+                    <FormField label="Shipping Mode">
+                      <select className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" value={shippingDisplay} onChange={e => setShippingDisplay(e.target.value)}>
+                        <option value="free">Free Shipping (always)</option>
+                        <option value="flat">Flat Rate</option>
+                        <option value="threshold">Free above threshold</option>
+                        <option value="custom">Custom text</option>
+                      </select>
+                    </FormField>
+                    {(shippingDisplay === 'flat' || shippingDisplay === 'threshold') && (
+                      <FormField label="Flat Shipping Rate"><Input type="number" min="0" step="0.01" value={flatShippingRate} onChange={e => setFlatShippingRate(e.target.value)} placeholder="e.g. 5.00" /></FormField>
+                    )}
+                    {shippingDisplay === 'threshold' && (
+                      <FormField label="Free Shipping Threshold"><Input type="number" min="0" step="0.01" value={freeShippingThreshold} onChange={e => setFreeShippingThreshold(e.target.value)} placeholder="e.g. 50.00" /></FormField>
+                    )}
+                    {shippingDisplay === 'custom' && (
+                      <FormField label="Custom Shipping Text"><Input value={shippingCustomText} onChange={e => setShippingCustomText(e.target.value)} placeholder="Calculated at checkout" /></FormField>
+                    )}
+                    <div className="p-3 bg-gray-50 border rounded-lg text-xs text-gray-600">
+                      Preview: Shipping — <span className="font-medium">{
+                        shippingDisplay === 'free' ? 'Free' :
+                        shippingDisplay === 'flat' ? `${currencySymbol}${flatShippingRate || '0'}` :
+                        shippingDisplay === 'threshold' ? `Free over ${currencySymbol}${freeShippingThreshold || '0'}, otherwise ${currencySymbol}${flatShippingRate || '0'}` :
+                        shippingCustomText || 'Calculated at checkout'
+                      }</span>
+                    </div>
                   </div>
                 </div>
               </Card>

@@ -155,8 +155,30 @@ export default function StoreCart() {
               </div>
               <div className="flex justify-between text-sm">
                 <span style={{ color: t.textMuted }}>Shipping</span>
-                <span className="font-medium" style={{ color: '#16a34a' }}>Free</span>
+                <span className="font-medium" style={{ color: (() => {
+                  const sd = storeConfig?.shipping_display || 'free';
+                  if (sd === 'free') return '#16a34a';
+                  if (sd === 'threshold' && total >= (Number(storeConfig?.free_shipping_threshold) || 0)) return '#16a34a';
+                  return t.text;
+                })() }}>
+                  {(() => {
+                    const sd = storeConfig?.shipping_display || 'free';
+                    if (sd === 'free') return 'Free';
+                    if (sd === 'flat') return formatPrice(Number(storeConfig?.flat_shipping_rate) || 0);
+                    if (sd === 'threshold') {
+                      const threshold = Number(storeConfig?.free_shipping_threshold) || 0;
+                      return total >= threshold ? 'Free' : formatPrice(Number(storeConfig?.flat_shipping_rate) || 0);
+                    }
+                    if (sd === 'custom') return storeConfig?.shipping_custom_text || 'Calculated at checkout';
+                    return 'Free';
+                  })()}
+                </span>
               </div>
+              {storeConfig?.shipping_display === 'threshold' && total < (Number(storeConfig?.free_shipping_threshold) || 0) && (
+                <div className="text-xs p-2 rounded-md" style={{ backgroundColor: t.primary + '10', color: t.primary }}>
+                  Add {formatPrice((Number(storeConfig?.free_shipping_threshold) || 0) - total)} more for free shipping!
+                </div>
+              )}
               <div className="flex justify-between text-sm">
                 <span style={{ color: t.textMuted }}>Tax</span>
                 <span className="font-medium" style={{ color: t.text }}>Calculated at checkout</span>

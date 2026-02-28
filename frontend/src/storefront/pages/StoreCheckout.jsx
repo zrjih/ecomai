@@ -260,16 +260,16 @@ export default function StoreCheckout() {
               <div className="space-y-4">
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wider mb-1.5 block" style={{ color: t.textMuted }}>Email *</label>
-                  <input type="email" placeholder="you@example.com" value={form.email} onChange={(e) => update('email', e.target.value)} required className="w-full px-4 py-3 text-sm outline-none transition focus:ring-2" style={{ ...inputStyle, '--tw-ring-color': t.primary + '40' }} />
+                  <input type="email" inputMode="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(e) => update('email', e.target.value)} required className="w-full px-4 py-3 text-sm outline-none transition focus:ring-2" style={{ ...inputStyle, '--tw-ring-color': t.primary + '40' }} />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-semibold uppercase tracking-wider mb-1.5 block" style={{ color: t.textMuted }}>Full Name *</label>
-                    <input type="text" placeholder="John Doe" value={form.name} onChange={(e) => update('name', e.target.value)} required className="w-full px-4 py-3 text-sm outline-none transition" style={inputStyle} />
+                    <input type="text" autoComplete="name" placeholder="John Doe" value={form.name} onChange={(e) => update('name', e.target.value)} required className="w-full px-4 py-3 text-sm outline-none transition" style={inputStyle} />
                   </div>
                   <div>
                     <label className="text-xs font-semibold uppercase tracking-wider mb-1.5 block" style={{ color: t.textMuted }}>Phone</label>
-                    <input type="tel" placeholder="+880 1XXX XXX XXX" value={form.phone} onChange={(e) => update('phone', e.target.value)} className="w-full px-4 py-3 text-sm outline-none transition" style={inputStyle} />
+                    <input type="tel" inputMode="tel" autoComplete="tel" placeholder="+880 1XXX XXX XXX" value={form.phone} onChange={(e) => update('phone', e.target.value)} className="w-full px-4 py-3 text-sm outline-none transition" style={inputStyle} />
                   </div>
                 </div>
                 {!isLoggedIn && (
@@ -307,20 +307,20 @@ export default function StoreCheckout() {
               <div className="space-y-4">
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wider mb-1.5 block" style={{ color: t.textMuted }}>Street Address *</label>
-                  <input type="text" placeholder="123 Main St, Apt 4B" value={form.street} onChange={(e) => update('street', e.target.value)} required className="w-full px-4 py-3 text-sm outline-none transition" style={inputStyle} />
+                  <input type="text" autoComplete="street-address" placeholder="123 Main St, Apt 4B" value={form.street} onChange={(e) => update('street', e.target.value)} required className="w-full px-4 py-3 text-sm outline-none transition" style={inputStyle} />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <label className="text-xs font-semibold uppercase tracking-wider mb-1.5 block" style={{ color: t.textMuted }}>City *</label>
-                    <input type="text" placeholder="Dhaka" value={form.city} onChange={(e) => update('city', e.target.value)} required className="w-full px-4 py-3 text-sm outline-none transition" style={inputStyle} />
+                    <input type="text" autoComplete="address-level2" placeholder="Dhaka" value={form.city} onChange={(e) => update('city', e.target.value)} required className="w-full px-4 py-3 text-sm outline-none transition" style={inputStyle} />
                   </div>
                   <div>
                     <label className="text-xs font-semibold uppercase tracking-wider mb-1.5 block" style={{ color: t.textMuted }}>State/Division</label>
-                    <input type="text" placeholder="Dhaka" value={form.state} onChange={(e) => update('state', e.target.value)} className="w-full px-4 py-3 text-sm outline-none transition" style={inputStyle} />
+                    <input type="text" autoComplete="address-level1" placeholder="Dhaka" value={form.state} onChange={(e) => update('state', e.target.value)} className="w-full px-4 py-3 text-sm outline-none transition" style={inputStyle} />
                   </div>
                   <div>
                     <label className="text-xs font-semibold uppercase tracking-wider mb-1.5 block" style={{ color: t.textMuted }}>ZIP Code *</label>
-                    <input type="text" placeholder="1205" value={form.zip} onChange={(e) => update('zip', e.target.value)} required className="w-full px-4 py-3 text-sm outline-none transition" style={inputStyle} />
+                    <input type="text" inputMode="numeric" autoComplete="postal-code" placeholder="1205" value={form.zip} onChange={(e) => update('zip', e.target.value)} required className="w-full px-4 py-3 text-sm outline-none transition" style={inputStyle} />
                   </div>
                 </div>
                 <div>
