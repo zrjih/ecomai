@@ -1,27 +1,54 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { register } from '../api';
 
-/* ─── Static plan data (always available, API data merges on top) ─── */
+/* ════════════════════════════════════════════════════════════════
+   HOOKS
+   ════════════════════════════════════════════════════════════════ */
+
+function useReveal(threshold = 0.15) {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setVisible(true); obs.disconnect(); } },
+      { threshold }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [threshold]);
+  return [ref, visible];
+}
+
+/* ════════════════════════════════════════════════════════════════
+   DATA
+   ════════════════════════════════════════════════════════════════ */
+
 const PLANS = [
   {
     slug: 'free', name: 'Free', price_monthly: 0, price_yearly: 0,
     tagline: 'For hobby sellers and side projects',
+    icon: '🌱',
     features: ['Up to 25 products', '50 orders / month', 'Basic storefront', '5 templates', 'Email support', 'SSL included'],
   },
   {
     slug: 'starter', name: 'Starter', price_monthly: 999, price_yearly: 9990,
     tagline: 'For small businesses getting started',
+    icon: '🚀',
     features: ['Up to 250 products', '500 orders / month', 'SSLCommerz payments', 'Custom CSS', 'Priority email support', 'Basic analytics', 'Discount codes'],
   },
   {
     slug: 'growth', name: 'Growth', price_monthly: 2499, price_yearly: 24990, popular: true,
     tagline: 'For growing stores and brands',
+    icon: '⚡',
     features: ['Unlimited products', 'Unlimited orders', 'All payment gateways', 'API access', 'Advanced analytics', 'Marketing campaigns', 'Custom domain', 'Priority chat support'],
   },
   {
     slug: 'enterprise', name: 'Enterprise', price_monthly: 0, price_yearly: 0,
     tagline: 'For large-scale & custom deployments',
+    icon: '🏢',
     features: ['Everything in Growth', 'Custom integrations', 'Dedicated account manager', 'SLA guarantee', 'Custom development', 'On-premise option', 'SSO / SAML', 'Phone support'],
   },
 ];
@@ -30,25 +57,40 @@ const comparisonRows = [
   { label: 'Products', free: '25', starter: '250', growth: 'Unlimited', enterprise: 'Unlimited' },
   { label: 'Orders / month', free: '50', starter: '500', growth: 'Unlimited', enterprise: 'Unlimited' },
   { label: 'Staff accounts', free: '1', starter: '3', growth: '10', enterprise: 'Unlimited' },
-  { label: 'Templates', free: '5', starter: '5', growth: 'All', enterprise: 'All + Custom' },
+  { label: 'Templates', free: '5', starter: '5', growth: 'All 8', enterprise: 'All + Custom' },
   { label: 'Custom domain', free: false, starter: false, growth: true, enterprise: true },
   { label: 'SSLCommerz / bKash', free: false, starter: true, growth: true, enterprise: true },
   { label: 'Custom CSS', free: false, starter: true, growth: true, enterprise: true },
   { label: 'Analytics', free: false, starter: 'Basic', growth: 'Advanced', enterprise: 'Advanced' },
   { label: 'Marketing tools', free: false, starter: false, growth: true, enterprise: true },
   { label: 'API access', free: false, starter: false, growth: true, enterprise: true },
+  { label: 'Multi-currency', free: false, starter: false, growth: true, enterprise: true },
+  { label: 'A/B testing', free: false, starter: false, growth: true, enterprise: true },
   { label: 'Support', free: 'Email', starter: 'Priority Email', growth: 'Chat + Email', enterprise: 'Dedicated + Phone' },
   { label: 'SLA guarantee', free: false, starter: false, growth: false, enterprise: true },
 ];
 
 const faqs = [
-  { q: 'Can I start for free?', a: 'Absolutely! Our Free plan gives you everything you need to launch your first store. No credit card required.' },
-  { q: 'Can I switch plans at any time?', a: 'Yes. Upgrade or downgrade your plan at any time. Changes take effect immediately and are prorated.' },
-  { q: 'What payment methods do you accept?', a: 'We accept bKash, Nagad, SSLCommerz, and international credit/debit cards for subscription payments.' },
-  { q: 'Is there a long-term contract?', a: 'No contracts. All plans are month-to-month or yearly with a discount. Cancel anytime.' },
-  { q: 'Do you offer refunds?', a: 'Yes, we offer a 14-day money-back guarantee on all paid plans. No questions asked.' },
-  { q: 'What happens if I exceed my plan limits?', a: "We'll notify you when you're approaching limits and suggest an upgrade. Your store will continue to work — we never cut you off mid-sale." },
+  { q: 'Can I start for free?', a: 'Absolutely! Our Free plan gives you everything you need to launch your first store. No credit card required. Upgrade anytime as your business grows.' },
+  { q: 'Can I switch plans at any time?', a: 'Yes. Upgrade or downgrade your plan at any time. Changes take effect immediately and unused credits are prorated to your account.' },
+  { q: 'What payment methods do you accept?', a: 'We accept bKash, Nagad, SSLCommerz, and international credit/debit cards (Visa, Mastercard, Amex) for subscription payments.' },
+  { q: 'Is there a long-term contract?', a: 'No contracts. All plans are month-to-month or yearly with a 17% discount. Cancel anytime with one click.' },
+  { q: 'Do you offer refunds?', a: 'Yes, we offer a 14-day money-back guarantee on all paid plans. No questions asked — email us and we\'ll process it within 24 hours.' },
+  { q: 'What happens if I exceed my plan limits?', a: 'We\'ll notify you when you\'re approaching limits and suggest an upgrade. Your store will continue to work — we never cut you off mid-sale.' },
+  { q: 'Can I import my existing products?', a: 'Yes! We support CSV/Excel import for bulk product uploads. Our team can also help with data migration from other platforms.' },
+  { q: 'Do you provide custom development?', a: 'Enterprise plan customers get access to custom development services. Contact our sales team to discuss your specific requirements.' },
 ];
+
+const trustSignals = [
+  { icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z', label: 'Bank-grade security' },
+  { icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', label: '99.9% uptime SLA' },
+  { icon: 'M3 10h18M7 14h2m4 0h4M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z', label: 'No hidden fees' },
+  { icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z', label: '14-day money-back' },
+];
+
+/* ════════════════════════════════════════════════════════════════
+   HELPER COMPONENTS
+   ════════════════════════════════════════════════════════════════ */
 
 function Check() {
   return <svg className="w-5 h-5 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>;
@@ -63,6 +105,10 @@ function CellValue({ val }) {
   return <span className="text-sm text-gray-700 font-medium">{val}</span>;
 }
 
+/* ════════════════════════════════════════════════════════════════
+   MAIN COMPONENT
+   ════════════════════════════════════════════════════════════════ */
+
 export default function Pricing() {
   const [billing, setBilling] = useState('monthly');
   const [plans, setPlans] = useState(PLANS);
@@ -71,10 +117,17 @@ export default function Pricing() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  const [heroRef, heroVis] = useReveal(0.1);
+  const [cardsRef, cardsVis] = useReveal(0.05);
+  const [trustRef, trustVis] = useReveal();
+  const [tableRef, tableVis] = useReveal(0.05);
+  const [faqRef, faqVis] = useReveal();
+  const [ctaRef, ctaVis] = useReveal();
+
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    const fn = () => setScrolled(window.scrollY > 20);
+    window.addEventListener('scroll', fn, { passive: true });
+    return () => window.removeEventListener('scroll', fn);
   }, []);
 
   useEffect(() => {
@@ -94,96 +147,133 @@ export default function Pricing() {
   const getPrice = (plan) => billing === 'yearly' ? plan.price_yearly : plan.price_monthly;
   const yearly = billing === 'yearly';
 
+  const reveal = (vis, delay = 0) => ({
+    opacity: vis ? 1 : 0,
+    transform: vis ? 'translateY(0)' : 'translateY(36px)',
+    transition: `opacity 0.7s cubic-bezier(.16,1,.3,1) ${delay}s, transform 0.7s cubic-bezier(.16,1,.3,1) ${delay}s`,
+  });
+
   return (
     <div className="min-h-screen bg-white overflow-x-hidden">
-      {/* ─── Navbar (matches Landing) ─── */}
-      <nav className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? 'bg-white/90 backdrop-blur-xl shadow-sm border-b border-gray-100' : 'bg-white border-b border-gray-100'}`}>
+
+      {/* ═══════════════════ NAVBAR ═══════════════════ */}
+      <nav className={`fixed top-0 inset-x-0 z-50 transition-all duration-500 ${scrolled ? 'bg-white/80 backdrop-blur-2xl shadow-lg shadow-gray-200/40 border-b border-gray-200/50' : 'bg-white/90 backdrop-blur-md border-b border-gray-100'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-teal-500 flex items-center justify-center">
+          <Link to="/" className="flex items-center gap-2.5 group">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-500 to-teal-500 flex items-center justify-center shadow-lg shadow-primary-200/50 group-hover:shadow-primary-300/60 transition-shadow">
               <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
             </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-primary-600 to-teal-500 bg-clip-text text-transparent">Ecomai</span>
+            <span className="text-xl font-extrabold bg-gradient-to-r from-primary-600 to-teal-500 bg-clip-text text-transparent">Ecomai</span>
           </Link>
           <div className="hidden md:flex items-center gap-8">
-            <Link to="/" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition">Home</Link>
-            <Link to="/pricing" className="text-sm font-medium text-primary-600">Pricing</Link>
+            <Link to="/" className="relative text-sm font-medium text-gray-600 hover:text-gray-900 transition group">
+              Home
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-primary-500 to-teal-500 rounded-full group-hover:w-full transition-all duration-300" />
+            </Link>
+            <Link to="/pricing" className="text-sm font-semibold text-primary-600">Pricing</Link>
             <Link to="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition">Sign In</Link>
-            <Link to="/signup" className="bg-gradient-to-r from-primary-600 to-teal-500 text-white px-5 py-2 rounded-full text-sm font-semibold hover:shadow-lg hover:shadow-primary-200 transition-all hover:-translate-y-0.5">
-              Get Started Free
+            <Link to="/signup" className="relative bg-gradient-to-r from-primary-600 to-teal-500 text-white px-6 py-2.5 rounded-full text-sm font-semibold shadow-lg shadow-primary-200/50 hover:shadow-xl hover:shadow-primary-300/50 transition-all hover:-translate-y-0.5 overflow-hidden group">
+              <span className="relative z-10">Get Started Free</span>
+              <div className="absolute inset-0 bg-gradient-to-r from-primary-700 to-teal-600 opacity-0 group-hover:opacity-100 transition-opacity" />
             </Link>
           </div>
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="md:hidden p-2 rounded-lg hover:bg-gray-100 transition" aria-label="Menu">
+          <button onClick={() => setMobileOpen(!mobileOpen)} className="md:hidden p-2 rounded-xl hover:bg-gray-100 transition" aria-label="Menu">
             <div className="w-5 h-5 relative">
-              <span className={`absolute left-0 w-5 h-0.5 bg-gray-700 rounded transition-all duration-300 ${mobileOpen ? 'top-2.5 rotate-45' : 'top-1'}`} />
-              <span className={`absolute left-0 top-2.5 w-5 h-0.5 bg-gray-700 rounded transition-all duration-300 ${mobileOpen ? 'opacity-0' : 'opacity-100'}`} />
-              <span className={`absolute left-0 w-5 h-0.5 bg-gray-700 rounded transition-all duration-300 ${mobileOpen ? 'top-2.5 -rotate-45' : 'top-4'}`} />
+              <span className={`absolute left-0 w-5 h-0.5 bg-gray-700 rounded-full transition-all duration-300 ${mobileOpen ? 'top-2 rotate-45' : 'top-0.5'}`} />
+              <span className={`absolute left-0 top-2 w-5 h-0.5 bg-gray-700 rounded-full transition-all duration-300 ${mobileOpen ? 'opacity-0 scale-0' : 'opacity-100'}`} />
+              <span className={`absolute left-0 w-5 h-0.5 bg-gray-700 rounded-full transition-all duration-300 ${mobileOpen ? 'top-2 -rotate-45' : 'top-3.5'}`} />
             </div>
           </button>
         </div>
-        <div className={`md:hidden overflow-hidden transition-all duration-300 bg-white/95 backdrop-blur-xl ${mobileOpen ? 'max-h-64 border-b border-gray-100' : 'max-h-0'}`}>
-          <div className="px-4 py-4 space-y-3">
-            <Link to="/" className="block text-sm font-medium text-gray-700 py-2">Home</Link>
-            <Link to="/pricing" className="block text-sm font-medium text-primary-600 py-2">Pricing</Link>
-            <Link to="/login" className="block text-sm font-medium text-gray-700 py-2">Sign In</Link>
-            <Link to="/signup" className="block text-center bg-gradient-to-r from-primary-600 to-teal-500 text-white px-5 py-2.5 rounded-full text-sm font-semibold">Get Started Free</Link>
+        <div className={`md:hidden overflow-hidden transition-all duration-400 bg-white/95 backdrop-blur-2xl ${mobileOpen ? 'max-h-64 border-b border-gray-100 shadow-xl' : 'max-h-0'}`}>
+          <div className="px-4 py-5 space-y-1">
+            {[['Home', '/'], ['Pricing', '/pricing'], ['Sign In', '/login']].map(([l, h]) => (
+              <Link key={l} to={h} onClick={() => setMobileOpen(false)} className="block text-sm font-medium text-gray-700 py-2.5 px-3 rounded-lg hover:bg-gray-50 transition">{l}</Link>
+            ))}
+            <Link to="/signup" className="block text-center bg-gradient-to-r from-primary-600 to-teal-500 text-white px-5 py-3 rounded-xl text-sm font-semibold mt-2">Get Started Free</Link>
           </div>
         </div>
       </nav>
 
-      {/* ─── Hero ─── */}
-      <section className="pt-28 pb-4 sm:pt-36 sm:pb-8 text-center relative">
+      {/* ═══════════════════ HERO ═══════════════════ */}
+      <section ref={heroRef} className="pt-28 pb-6 sm:pt-36 sm:pb-10 text-center relative overflow-hidden">
+        {/* Background */}
         <div className="absolute inset-0 -z-10">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] rounded-full opacity-15" style={{ background: 'radial-gradient(circle, #4a9aed 0%, transparent 70%)' }} />
+          <div className="absolute -top-[20%] left-1/2 -translate-x-1/2 w-[700px] h-[500px] bg-primary-200/20 rounded-full blur-[100px] animate-[morph-blob_20s_ease-in-out_infinite]" />
+          <div className="absolute bottom-0 right-0 w-[300px] h-[300px] bg-teal-200/15 rounded-full blur-[80px]" />
+          <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle, #1a73e8 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
         </div>
+
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
-          <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-100 rounded-full px-4 py-1.5 mb-6">
-            <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+          <div style={reveal(heroVis)} className="inline-flex items-center gap-2.5 bg-emerald-50 border border-emerald-100 rounded-full px-5 py-2 mb-8 shadow-sm">
+            <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
             <span className="text-xs font-semibold text-emerald-700">14-day money-back guarantee on all plans</span>
           </div>
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-gray-900 leading-[1.1]">
-            Simple, Transparent<br />
-            <span className="bg-gradient-to-r from-primary-600 via-teal-500 to-emerald-400 bg-clip-text text-transparent">Pricing</span>
+
+          <h1 style={reveal(heroVis, 0.1)} className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-gray-900 leading-[1.1]">
+            Simple, Transparent
+            <br />
+            <span className="bg-gradient-to-r from-primary-600 via-teal-500 to-emerald-400 bg-clip-text text-transparent bg-[length:200%_auto] animate-[gradient-x_4s_ease_infinite]">Pricing</span>
           </h1>
-          <p className="mt-5 text-lg sm:text-xl text-gray-500 max-w-xl mx-auto">
+
+          <p style={reveal(heroVis, 0.2)} className="mt-6 text-lg sm:text-xl text-gray-500 max-w-xl mx-auto leading-relaxed">
             Start free and scale as you grow. No hidden fees, no surprises.
           </p>
 
           {/* Billing toggle */}
-          <div className="mt-10 inline-flex items-center gap-3 bg-gray-100 rounded-full p-1">
-            <button onClick={() => setBilling('monthly')} className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${billing === 'monthly' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+          <div style={reveal(heroVis, 0.3)} className="mt-10 inline-flex items-center gap-1 bg-gray-100 rounded-2xl p-1.5 shadow-inner">
+            <button
+              onClick={() => setBilling('monthly')}
+              className={`relative px-6 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${billing === 'monthly' ? 'bg-white text-gray-900 shadow-md' : 'text-gray-500 hover:text-gray-700'}`}
+            >
               Monthly
             </button>
-            <button onClick={() => setBilling('yearly')} className={`px-5 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-2 ${billing === 'yearly' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            <button
+              onClick={() => setBilling('yearly')}
+              className={`relative px-6 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center gap-2 ${billing === 'yearly' ? 'bg-white text-gray-900 shadow-md' : 'text-gray-500 hover:text-gray-700'}`}
+            >
               Yearly
-              <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full">SAVE 17%</span>
+              <span className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-sm">-17%</span>
             </button>
           </div>
         </div>
       </section>
 
-      {/* ─── Plan Cards ─── */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+      {/* ═══════════════════ PLAN CARDS ═══════════════════ */}
+      <section ref={cardsRef} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
         {loading ? (
-          <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" /></div>
+          <div className="flex justify-center py-20"><div className="w-10 h-10 rounded-full border-4 border-primary-200 border-t-primary-600 animate-spin" /></div>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {plans.map((plan) => {
+            {plans.map((plan, idx) => {
               const price = getPrice(plan);
               const isPopular = plan.popular;
               const isEnterprise = plan.slug === 'enterprise';
               return (
-                <div key={plan.slug} className={`relative rounded-2xl border-2 p-8 flex flex-col transition-all duration-300 hover:shadow-xl ${isPopular ? 'border-primary-500 shadow-lg shadow-primary-100 bg-white scale-[1.02]' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+                <div
+                  key={plan.slug}
+                  className={`group relative rounded-2xl border-2 p-8 flex flex-col transition-all duration-500 hover:-translate-y-2 ${
+                    isPopular
+                      ? 'border-primary-500 bg-white shadow-xl shadow-primary-100/60 scale-[1.02] hover:shadow-2xl hover:shadow-primary-200/60'
+                      : 'border-gray-200 bg-white hover:border-primary-200 hover:shadow-xl hover:shadow-gray-200/60'
+                  }`}
+                  style={reveal(cardsVis, 0.05 + idx * 0.08)}
+                >
                   {isPopular && (
-                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-primary-600 to-teal-500 text-white text-xs font-bold px-5 py-1.5 rounded-full shadow-lg shadow-primary-200">
-                      MOST POPULAR
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-primary-600 to-teal-500 text-white text-xs font-bold px-6 py-2 rounded-full shadow-lg shadow-primary-200/50 animate-[bounce-subtle_3s_ease-in-out_infinite]">
+                      ⚡ MOST POPULAR
                     </div>
                   )}
-                  <div className="mb-5">
-                    <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
+
+                  {/* Plan icon & name */}
+                  <div className="mb-6">
+                    <div className="text-3xl mb-3">{plan.icon}</div>
+                    <h3 className="text-xl font-bold text-gray-900">{plan.name}</h3>
                     <p className="text-sm text-gray-500 mt-1">{plan.tagline}</p>
                   </div>
-                  <div className="mb-6">
+
+                  {/* Price */}
+                  <div className="mb-7">
                     {isEnterprise ? (
                       <>
                         <span className="text-4xl font-extrabold text-gray-900">Custom</span>
@@ -191,16 +281,23 @@ export default function Pricing() {
                       </>
                     ) : (
                       <>
-                        <span className="text-4xl font-extrabold text-gray-900">৳{(yearly ? Math.round(price / 12) : price).toLocaleString()}</span>
-                        <span className="text-gray-500 text-sm"> / month</span>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-sm text-gray-500">৳</span>
+                          <span className="text-5xl font-extrabold text-gray-900 tabular-nums transition-all duration-500">
+                            {(yearly ? Math.round(price / 12) : price).toLocaleString()}
+                          </span>
+                          <span className="text-gray-500 text-sm font-medium"> / mo</span>
+                        </div>
                         {yearly && price > 0 && (
-                          <span className="block text-xs text-gray-400 mt-1">৳{price.toLocaleString()} billed yearly</span>
+                          <span className="block text-xs text-gray-400 mt-1.5">৳{price.toLocaleString()} billed yearly</span>
                         )}
-                        {price === 0 && <span className="block text-xs text-gray-400 mt-1">Free forever</span>}
+                        {price === 0 && <span className="block text-xs text-emerald-500 font-semibold mt-1.5">Free forever</span>}
                       </>
                     )}
                   </div>
-                  <ul className="space-y-3 mb-8 flex-1">
+
+                  {/* Features */}
+                  <ul className="space-y-3.5 mb-8 flex-1">
                     {plan.features.map((f, i) => (
                       <li key={i} className="flex items-start gap-2.5 text-sm text-gray-600">
                         <Check />
@@ -208,17 +305,22 @@ export default function Pricing() {
                       </li>
                     ))}
                   </ul>
+
+                  {/* CTA button */}
                   <Link
                     to={isEnterprise ? '#' : `/signup?plan=${plan.slug}${yearly ? '&billing=yearly' : ''}`}
-                    className={`w-full text-center py-3 rounded-xl font-semibold transition-all duration-200 ${
+                    className={`relative w-full text-center py-3.5 rounded-xl font-semibold transition-all duration-300 overflow-hidden group/btn ${
                       isPopular
-                        ? 'bg-gradient-to-r from-primary-600 to-teal-500 text-white hover:shadow-lg hover:shadow-primary-200 hover:-translate-y-0.5'
+                        ? 'bg-gradient-to-r from-primary-600 to-teal-500 text-white shadow-lg shadow-primary-200/50 hover:shadow-xl hover:shadow-primary-300/50 hover:-translate-y-0.5'
                         : isEnterprise
-                          ? 'bg-gray-900 text-white hover:bg-gray-800'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          ? 'bg-gray-900 text-white hover:bg-gray-800 hover:shadow-lg'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-md'
                     }`}
                   >
-                    {isEnterprise ? 'Contact Sales' : price === 0 ? 'Start Free' : 'Get Started'}
+                    <span className="relative z-10">
+                      {isEnterprise ? 'Contact Sales' : price === 0 ? 'Start Free' : 'Get Started'}
+                    </span>
+                    {isPopular && <div className="absolute inset-0 bg-gradient-to-r from-primary-700 to-teal-600 opacity-0 group-hover/btn:opacity-100 transition-opacity" />}
                   </Link>
                 </div>
               );
@@ -227,28 +329,52 @@ export default function Pricing() {
         )}
       </section>
 
-      {/* ─── Feature Comparison Table ─── */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
-        <h2 className="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-2">Compare Plans</h2>
-        <p className="text-center text-gray-500 mb-12 max-w-lg mx-auto">See exactly what you get with each plan.</p>
+      {/* ═══════════════════ TRUST SIGNALS ═══════════════════ */}
+      <section ref={trustRef} className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {trustSignals.map((t, i) => (
+            <div key={i} className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100" style={reveal(trustVis, i * 0.08)}>
+              <svg className="w-5 h-5 text-primary-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={t.icon} />
+              </svg>
+              <span className="text-xs font-semibold text-gray-600">{t.label}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ═══════════════════ COMPARISON TABLE ═══════════════════ */}
+      <section ref={tableRef} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
+        <div className="text-center mb-14" style={reveal(tableVis)}>
+          <div className="inline-flex items-center gap-2 bg-primary-50 border border-primary-100 rounded-full px-4 py-1.5 mb-5">
+            <span className="text-xs font-semibold text-primary-700">Detailed Comparison</span>
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">Compare Plans</h2>
+          <p className="text-gray-500 mt-3 max-w-lg mx-auto">See exactly what you get with each plan. All plans include SSL, hosting, and basic support.</p>
+        </div>
 
         {/* Desktop table */}
-        <div className="hidden md:block overflow-hidden rounded-2xl border border-gray-200">
+        <div className="hidden md:block overflow-hidden rounded-2xl border border-gray-200 shadow-sm" style={reveal(tableVis, 0.1)}>
           <table className="w-full">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left text-sm font-semibold text-gray-900 py-4 px-6 w-1/5">Feature</th>
+              <tr className="bg-gradient-to-r from-gray-50 to-gray-50/50 border-b border-gray-200">
+                <th className="text-left text-sm font-bold text-gray-900 py-5 px-6 w-1/5">Feature</th>
                 {['Free', 'Starter', 'Growth', 'Enterprise'].map(n => (
-                  <th key={n} className="text-center text-sm font-semibold text-gray-900 py-4 px-4">{n}</th>
+                  <th key={n} className={`text-center text-sm font-bold py-5 px-4 ${n === 'Growth' ? 'text-primary-600 bg-primary-50/50' : 'text-gray-900'}`}>
+                    {n}
+                    {n === 'Growth' && <span className="ml-2 text-[10px] bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">Popular</span>}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {comparisonRows.map((row, i) => (
-                <tr key={i} className={`border-b border-gray-100 ${i % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
-                  <td className="text-sm text-gray-700 py-3.5 px-6 font-medium">{row.label}</td>
+                <tr key={i} className={`border-b border-gray-100 transition-colors hover:bg-gray-50/50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
+                  <td className="text-sm text-gray-700 py-4 px-6 font-medium">{row.label}</td>
                   {['free', 'starter', 'growth', 'enterprise'].map(slug => (
-                    <td key={slug} className="text-center py-3.5 px-4"><CellValue val={row[slug]} /></td>
+                    <td key={slug} className={`text-center py-4 px-4 ${slug === 'growth' ? 'bg-primary-50/20' : ''}`}>
+                      <div className="flex justify-center"><CellValue val={row[slug]} /></div>
+                    </td>
                   ))}
                 </tr>
               ))}
@@ -256,20 +382,21 @@ export default function Pricing() {
           </table>
         </div>
 
-        {/* Mobile comparison (accordion-style cards) */}
-        <div className="md:hidden space-y-4">
+        {/* Mobile comparison */}
+        <div className="md:hidden space-y-4" style={reveal(tableVis, 0.1)}>
           {plans.map(plan => (
-            <details key={plan.slug} className="group rounded-xl border border-gray-200 overflow-hidden">
-              <summary className="flex items-center justify-between p-4 cursor-pointer bg-white hover:bg-gray-50 transition">
+            <details key={plan.slug} className="group rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+              <summary className="flex items-center justify-between p-5 cursor-pointer bg-white hover:bg-gray-50 transition">
                 <div className="flex items-center gap-3">
-                  <span className={`font-semibold text-gray-900 ${plan.popular ? 'text-primary-600' : ''}`}>{plan.name}</span>
-                  {plan.popular && <span className="text-[10px] font-bold bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">POPULAR</span>}
+                  <span className="text-2xl">{plan.icon}</span>
+                  <span className={`font-bold text-gray-900 ${plan.popular ? 'text-primary-600' : ''}`}>{plan.name}</span>
+                  {plan.popular && <span className="text-[10px] font-bold bg-primary-100 text-primary-700 px-2.5 py-0.5 rounded-full">POPULAR</span>}
                 </div>
-                <svg className="w-5 h-5 text-gray-400 transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                <svg className="w-5 h-5 text-gray-400 transition-transform duration-300 group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
               </summary>
-              <div className="px-4 pb-4 space-y-2 border-t border-gray-100 pt-3">
+              <div className="px-5 pb-5 space-y-2.5 border-t border-gray-100 pt-4 bg-gray-50/50">
                 {comparisonRows.map((row, i) => (
-                  <div key={i} className="flex justify-between items-center py-1.5">
+                  <div key={i} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
                     <span className="text-sm text-gray-600">{row.label}</span>
                     <CellValue val={row[plan.slug]} />
                   </div>
@@ -280,27 +407,36 @@ export default function Pricing() {
         </div>
       </section>
 
-      {/* ─── FAQ ─── */}
-      <section className="py-16 sm:py-24 bg-gray-50">
+      {/* ═══════════════════ FAQ ═══════════════════ */}
+      <section ref={faqRef} className="py-16 sm:py-24 bg-gray-50/50">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-2 bg-primary-50 rounded-full px-4 py-1.5 mb-4">
-              <span className="text-xs font-semibold text-primary-700">FAQ</span>
+          <div className="text-center mb-14" style={reveal(faqVis)}>
+            <div className="inline-flex items-center gap-2 bg-amber-50 border border-amber-100 rounded-full px-4 py-1.5 mb-5">
+              <span className="text-xs font-semibold text-amber-700">FAQ</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Frequently Asked Questions</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">Frequently Asked Questions</h2>
+            <p className="text-gray-500 mt-3">Can't find what you're looking for? <a href="mailto:support@ecomai.dev" className="text-primary-600 font-semibold hover:underline">Contact our team</a>.</p>
           </div>
 
           <div className="space-y-3">
             {faqs.map((faq, i) => (
-              <div key={i} className="bg-white rounded-xl border border-gray-200 overflow-hidden transition-shadow hover:shadow-sm">
+              <div
+                key={i}
+                className={`bg-white rounded-xl border overflow-hidden transition-all duration-300 ${openFaq === i ? 'border-primary-200 shadow-lg shadow-primary-50' : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'}`}
+                style={reveal(faqVis, 0.05 + i * 0.03)}
+              >
                 <button
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                  className="w-full flex items-center justify-between p-5 text-left"
+                  className="w-full flex items-center justify-between p-5 text-left group"
                 >
-                  <span className="text-sm font-semibold text-gray-900 pr-4">{faq.q}</span>
-                  <svg className={`w-5 h-5 text-gray-400 shrink-0 transition-transform duration-200 ${openFaq === i ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  <span className={`text-sm font-semibold pr-4 transition-colors ${openFaq === i ? 'text-primary-700' : 'text-gray-900 group-hover:text-primary-700'}`}>{faq.q}</span>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all duration-300 ${openFaq === i ? 'bg-primary-100 rotate-180' : 'bg-gray-100 group-hover:bg-primary-50'}`}>
+                    <svg className="w-4 h-4 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
                 </button>
-                <div className={`overflow-hidden transition-all duration-300 ${openFaq === i ? 'max-h-40 pb-5' : 'max-h-0'}`}>
+                <div className={`overflow-hidden transition-all duration-400 ease-out ${openFaq === i ? 'max-h-48 pb-5' : 'max-h-0'}`}>
                   <p className="px-5 text-sm text-gray-600 leading-relaxed">{faq.a}</p>
                 </div>
               </div>
@@ -309,19 +445,28 @@ export default function Pricing() {
         </div>
       </section>
 
-      {/* ─── CTA ─── */}
-      <section className="py-16 sm:py-24">
+      {/* ═══════════════════ CTA ═══════════════════ */}
+      <section ref={ctaRef} className="py-16 sm:py-24">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-primary-600 via-teal-500 to-emerald-400 p-10 sm:p-16 text-center">
-            <div className="absolute top-0 right-0 w-64 h-64 rounded-full opacity-30" style={{ background: 'radial-gradient(circle, #fff 0%, transparent 70%)' }} />
-            <h2 className="relative text-2xl sm:text-4xl font-bold text-white mb-4">Still Have Questions?</h2>
-            <p className="relative text-lg text-white/80 max-w-xl mx-auto mb-8">Our team is here to help. Start a free trial or chat with us anytime.</p>
+          <div className="relative rounded-[2rem] overflow-hidden p-12 sm:p-16 text-center" style={reveal(ctaVis)}>
+            {/* Animated gradient BG */}
+            <div className="absolute inset-0 bg-gradient-to-br from-primary-600 via-teal-500 to-emerald-500 bg-[length:200%_200%] animate-[gradient-x_6s_ease_infinite]" />
+            <div className="absolute top-0 right-0 w-72 h-72 rounded-full opacity-20 blur-3xl bg-white" />
+            <div className="absolute bottom-0 left-0 w-56 h-56 rounded-full opacity-15 blur-3xl bg-white" />
+            <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
+
+            <h2 className="relative text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-5 leading-tight">
+              Still Have Questions?
+            </h2>
+            <p className="relative text-lg text-white/80 max-w-xl mx-auto mb-10">
+              Our team is here to help. Start a free trial or chat with us anytime.
+            </p>
             <div className="relative flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link to="/signup" className="w-full sm:w-auto bg-white text-primary-700 px-8 py-3.5 rounded-full text-base font-semibold hover:bg-gray-50 hover:shadow-xl transition-all hover:-translate-y-0.5 flex items-center justify-center gap-2">
+              <Link to="/signup" className="group w-full sm:w-auto bg-white text-primary-700 px-8 py-4 rounded-2xl text-base font-semibold hover:bg-gray-50 shadow-xl hover:shadow-2xl transition-all hover:-translate-y-1 flex items-center justify-center gap-2.5">
                 Start Free Trial
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
               </Link>
-              <a href="mailto:support@ecomai.dev" className="w-full sm:w-auto border-2 border-white/30 text-white px-8 py-3.5 rounded-full text-base font-semibold hover:bg-white/10 transition-all flex items-center justify-center">
+              <a href="mailto:support@ecomai.dev" className="w-full sm:w-auto border-2 border-white/30 text-white px-8 py-4 rounded-2xl text-base font-semibold hover:bg-white/10 hover:border-white/50 transition-all flex items-center justify-center">
                 Contact Sales
               </a>
             </div>
@@ -329,34 +474,45 @@ export default function Pricing() {
         </div>
       </section>
 
-      {/* ─── Footer ─── */}
-      <footer className="bg-gray-950 text-gray-400 pt-16 pb-8">
+      {/* ═══════════════════ FOOTER ═══════════════════ */}
+      <footer className="bg-gray-950 text-gray-400 pt-20 pb-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-8 pb-12 border-b border-gray-800">
-            <div className="col-span-2 md:col-span-1">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-teal-500 flex items-center justify-center">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-8 pb-14 border-b border-gray-800/80">
+            <div className="col-span-2">
+              <div className="flex items-center gap-2.5 mb-5">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-500 to-teal-500 flex items-center justify-center shadow-lg shadow-primary-900/30">
                   <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                 </div>
-                <span className="text-lg font-bold text-white">Ecomai</span>
+                <span className="text-xl font-extrabold text-white">Ecomai</span>
               </div>
-              <p className="text-sm leading-relaxed mb-4">The all-in-one e-commerce platform built for Bangladesh and beyond.</p>
+              <p className="text-sm leading-relaxed mb-6 max-w-xs">The all-in-one e-commerce platform built for Bangladesh and beyond.</p>
+              <div className="flex gap-3">
+                {[
+                  { label: 'Twitter', path: 'M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z' },
+                  { label: 'Facebook', path: 'M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z' },
+                  { label: 'LinkedIn', path: 'M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z' },
+                ].map((s, i) => (
+                  <a key={i} href="#" className="w-9 h-9 rounded-xl bg-gray-800/80 hover:bg-primary-600 flex items-center justify-center transition-all hover:scale-110 hover:shadow-lg hover:shadow-primary-900/30" aria-label={s.label}>
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d={s.path} /></svg>
+                  </a>
+                ))}
+              </div>
             </div>
             {[
               { title: 'Product', links: [['Features', '/'], ['Pricing', '/pricing'], ['Templates', '#']] },
               { title: 'Company', links: [['About', '#'], ['Blog', '#'], ['Contact', '#']] },
               { title: 'Resources', links: [['Documentation', '#'], ['Help Center', '#'], ['API Reference', '#']] },
-              { title: 'Legal', links: [['Privacy Policy', '#'], ['Terms of Service', '#']] },
+              { title: 'Legal', links: [['Privacy Policy', '#'], ['Terms of Service', '#'], ['GDPR', '#']] },
             ].map((col, i) => (
               <div key={i}>
-                <h4 className="text-sm font-semibold text-white mb-4">{col.title}</h4>
-                <ul className="space-y-2.5">
+                <h4 className="text-sm font-semibold text-white mb-4 tracking-wide">{col.title}</h4>
+                <ul className="space-y-3">
                   {col.links.map(([label, href], j) => (
                     <li key={j}>
                       {href.startsWith('/') ? (
-                        <Link to={href} className="text-sm hover:text-white transition">{label}</Link>
+                        <Link to={href} className="text-sm hover:text-white transition-colors">{label}</Link>
                       ) : (
-                        <a href={href} className="text-sm hover:text-white transition">{label}</a>
+                        <a href={href} className="text-sm hover:text-white transition-colors">{label}</a>
                       )}
                     </li>
                   ))}
@@ -366,7 +522,13 @@ export default function Pricing() {
           </div>
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8">
             <p className="text-sm">&copy; {new Date().getFullYear()} Ecomai. All rights reserved.</p>
-            <p className="text-xs text-gray-600">Built with love in Bangladesh</p>
+            <div className="flex items-center gap-6 text-xs text-gray-600">
+              <span>Built with ❤️ in Bangladesh</span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                All systems operational
+              </span>
+            </div>
           </div>
         </div>
       </footer>
