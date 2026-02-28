@@ -27,7 +27,7 @@ async function registerCustomer({ shopId, email, password, full_name, phone }) {
 
   if (existing) {
     // Upgrade guest to registered
-    const updated = await customerRepo.updateCustomer(existing.id, { password_hash, is_registered: true, full_name, phone });
+    const updated = await customerRepo.updateCustomer(existing.id, shopId, { password_hash, is_registered: true, full_name, phone });
     const token = signCustomerToken(updated);
     return { customer: sanitize(updated), token };
   }
@@ -63,7 +63,7 @@ async function getCustomerProfile(customerId) {
 
 async function updateCustomerProfile(customerId, patch) {
   const allowed = { full_name: patch.full_name, phone: patch.phone, addresses: patch.addresses };
-  return sanitize(await customerRepo.updateCustomer(customerId, allowed));
+  return sanitize(await customerRepo.updateCustomer(customerId, null, allowed));
 }
 
 async function createCustomer({ shopId, email, full_name, phone }) {
@@ -92,7 +92,7 @@ async function findOrCreateByEmail({ shopId, email, full_name, phone, password }
       patch.is_registered = true;
     }
     const updated = Object.keys(patch).length > 0
-      ? await customerRepo.updateCustomer(existing.id, patch)
+      ? await customerRepo.updateCustomer(existing.id, shopId, patch)
       : existing;
     const token = signCustomerToken(updated);
     return { customer: sanitize(updated), token, isNew: false };
@@ -129,7 +129,7 @@ async function changePassword(customerId, { currentPassword, newPassword }) {
   }
 
   const password_hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
-  await customerRepo.updateCustomer(customerId, { password_hash, is_registered: true });
+  await customerRepo.updateCustomer(customerId, null, { password_hash, is_registered: true });
   return { message: 'Password updated successfully' };
 }
 
@@ -154,7 +154,7 @@ async function updateCustomerAdmin(shopId, customerId, { full_name, phone, email
   if (full_name !== undefined) patch.full_name = full_name;
   if (phone !== undefined) patch.phone = phone;
   if (email && email !== customer.email) patch.email = email;
-  return sanitize(await customerRepo.updateCustomer(customerId, patch));
+  return sanitize(await customerRepo.updateCustomer(customerId, shopId, patch));
 }
 
 async function deleteCustomer(shopId, customerId) {

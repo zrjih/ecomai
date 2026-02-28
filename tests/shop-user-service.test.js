@@ -1,12 +1,12 @@
-const { describe, it, before, after } = require('node:test');
+const { describe, it, beforeAll, afterAll } = require('bun:test');
 const assert = require('node:assert/strict');
 const { setup, teardown, shopId } = require('./helpers/setup');
 const shopService = require('../src/services/shops');
 const usersService = require('../src/services/users');
 
 describe('shop and user service', () => {
-  before(setup);
-  after(teardown);
+  beforeAll(setup);
+  afterAll(teardown);
 
   let newShopId;
 
@@ -19,8 +19,8 @@ describe('shop and user service', () => {
   });
 
   it('updates a shop', async () => {
-    const updated = await shopService.updateShop(newShopId, { status: 'paused' });
-    assert.equal(updated.status, 'paused');
+    const updated = await shopService.updateShop(newShopId, { status: 'suspended' });
+    assert.equal(updated.status, 'suspended');
   });
 
   it('creates a user', async () => {

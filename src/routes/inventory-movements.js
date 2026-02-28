@@ -2,6 +2,7 @@ const express = require('express');
 const { authRequired, requireRoles, resolveTenant } = require('../middleware/auth');
 const { requireTenantContext } = require('../middleware/tenant');
 const { asyncHandler } = require('../middleware/async-handler');
+const { validateBody } = require('../middleware/validate');
 const inventoryService = require('../services/inventory-movements');
 
 const router = express.Router();
@@ -17,7 +18,11 @@ router.get('/', asyncHandler(async (req, res) => {
   res.json(result);
 }));
 
-router.post('/', asyncHandler(async (req, res) => {
+router.post('/', validateBody({
+  product_id: { required: true, type: 'string' },
+  type: { required: true, type: 'string', oneOf: ['in', 'out', 'adjustment', 'return'] },
+  quantity: { required: true, type: 'number', min: 1 },
+}), asyncHandler(async (req, res) => {
   const movement = await inventoryService.createMovement({
     shop_id: req.tenantShopId, ...req.body,
   });

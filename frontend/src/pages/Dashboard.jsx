@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAdmin } from '../contexts/AdminContext';
-import { products, orders, customers, campaigns, shops } from '../api';
+import { products, orders, customers, campaigns, shops, dashboard } from '../api';
 import { StatCard, Card, Badge, Button, PageSkeleton } from '../components/UI';
 
 /* helpers */
@@ -293,24 +293,43 @@ function ShopDashboard({ user, isSuperAdmin, currentShop, selectedShop }) {
   const navigate = useNavigate();
   const [stats, setStats] = useState({ products: 0, orders: 0, customers: 0, campaigns: 0 });
   const [recentOrders, setRecentOrders] = useState([]);
+  const [topProducts, setTopProducts] = useState([]);
+  const [ordersByStatus, setOrdersByStatus] = useState({});
   const [shop, setShop] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [revenue, setRevenue] = useState(0);
 
   useEffect(() => {
     Promise.allSettled([
-      products.list(),
-      orders.list(),
-      customers.list(),
+      dashboard.shop(),
       campaigns.list(),
       isSuperAdmin ? Promise.resolve(currentShop) : shops.me(),
-    ]).then(([p, o, c, m, s]) => {
-      setStats({
-        products: p.status === 'fulfilled' ? p.value.total : 0,
-        orders: o.status === 'fulfilled' ? o.value.total : 0,
-        customers: c.status === 'fulfilled' ? c.value.total : 0,
-        campaigns: m.status === 'fulfilled' ? m.value.total : 0,
-      });
-      if (o.status === 'fulfilled') setRecentOrders(o.value.items.slice(-5).reverse());
+    ]).then(([d, m, s]) => {
+      if (d.status === 'fulfilled') {
+        const data = d.value;
+        setStats({
+          products: data.products?.total || 0,
+          orders: data.orders?.total || 0,
+          customers: data.customers?.total || 0,
+          campaigns: m.status === 'fulfilled' ? m.value.total : 0,
+        });
+        setRevenue(data.revenue?.total || 0);
+        setOrdersByStatus(data.orders?.byStatus || {});
+        setRecentOrders(data.recentOrders || []);
+        setTopProducts(data.topProducts || []);
+      } else {
+        // Fallback: legacy multiple-API approach
+        Promise.allSettled([products.list(), orders.list(), customers.list()])
+          .then(([p, o, c]) => {
+            setStats({
+              products: p.status === 'fulfilled' ? p.value.total : 0,
+              orders: o.status === 'fulfilled' ? o.value.total : 0,
+              customers: c.status === 'fulfilled' ? c.value.total : 0,
+              campaigns: m.status === 'fulfilled' ? m.value.total : 0,
+            });
+            if (o.status === 'fulfilled') setRecentOrders(o.value.items.slice(-5).reverse());
+          });
+      }
       if (s?.status === 'fulfilled' && s.value) setShop(s.value);
       else if (isSuperAdmin && currentShop) setShop(currentShop);
       setLoading(false);
@@ -319,9 +338,8 @@ function ShopDashboard({ user, isSuperAdmin, currentShop, selectedShop }) {
 
   if (loading) return <PageSkeleton />;
 
-  const revenue = recentOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
   const storeUrl = shop ? '/store/' + shop.slug : (currentShop ? '/store/' + currentShop.slug : null);
-  const avgOrder = recentOrders.length > 0 ? (revenue / recentOrders.length) : 0;
+  const avgOrder = stats.orders > 0 ? (revenue / stats.orders) : 0;
 
   const quickActions = [
     { label: 'Add Product', icon: '\u{1F4E6}', to: '/admin/products', desc: 'Create a new product listing' },
@@ -387,7 +405,7 @@ function ShopDashboard({ user, isSuperAdmin, currentShop, selectedShop }) {
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <div>
               <h2 className="font-semibold text-gray-900">Recent Orders</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Latest 5 orders placed</p>
+              <p className="text-xs text-gray-500 mt-0.5">Latest orders placed</p>
             </div>
             <Button variant="ghost" size="sm" onClick={() => navigate('/admin/orders')}>View all &rarr;</Button>
           </div>
@@ -424,7 +442,7 @@ function ShopDashboard({ user, isSuperAdmin, currentShop, selectedShop }) {
                 <div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Total Revenue</span>
-                    <span className="text-xl font-bold text-emerald-600">{revenue.toFixed(2)}</span>
+                    <span className="text-xl font-bold text-emerald-600">${fmt(revenue)}</span>
                   </div>
                   <div className="mt-2 w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                     <div className="h-full bg-emerald-500 rounded-full" style={{ width: Math.min(100, revenue > 0 ? 60 : 0) + '%' }} />
@@ -432,21 +450,48 @@ function ShopDashboard({ user, isSuperAdmin, currentShop, selectedShop }) {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Avg Order Value</span>
-                  <span className="text-lg font-bold text-gray-900">{avgOrder.toFixed(2)}</span>
+                  <span className="text-lg font-bold text-gray-900">${fmt(avgOrder)}</span>
                 </div>
+                {Object.keys(ordersByStatus).length > 0 && (
+                  <div className="pt-3 border-t border-gray-100">
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Orders by Status</span>
+                    <div className="mt-2 space-y-1.5">
+                      {Object.entries(ordersByStatus).map(([status, count]) => (
+                        <div key={status} className="flex items-center justify-between">
+                          <Badge variant={orderStatusColor(status)} size="sm">{status}</Badge>
+                          <span className="text-sm font-semibold text-gray-700 tabular-nums">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Active Campaigns</span>
                   <span className="text-lg font-bold text-primary-600">{stats.campaigns}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Conversion Rate</span>
-                  <span className="text-lg font-bold text-gray-900">
-                    {stats.customers > 0 && stats.orders > 0 ? ((stats.orders / stats.customers) * 100).toFixed(1) : '0.0'}%
-                  </span>
-                </div>
               </div>
             </div>
           </Card>
+
+          {topProducts.length > 0 && (
+            <Card>
+              <div className="p-6">
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Top Products</h3>
+                <div className="space-y-3">
+                  {topProducts.map((p, i) => (
+                    <div key={p.product_id} className="flex items-center gap-3">
+                      <span className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center text-xs font-bold text-primary-600 flex-shrink-0">{i + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
+                        <p className="text-xs text-gray-500">{p.units_sold} sold</p>
+                      </div>
+                      <span className="text-sm font-semibold text-emerald-600 tabular-nums">${fmt(p.revenue)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </Card>
+          )}
 
           <Card>
             <div className="p-6">

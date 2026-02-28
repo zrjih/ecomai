@@ -1,14 +1,15 @@
 const db = require('../db');
 
 async function listByShop(shopId, { status, parentId, search, page = 1, limit = 50 } = {}) {
-  const conditions = ['shop_id = $1'];
-  const params = [shopId];
-  let idx = 2;
+  const conditions = [];
+  const params = [];
+  let idx = 1;
+  if (shopId) { conditions.push(`shop_id = $${idx}`); params.push(shopId); idx++; }
   if (status) { conditions.push(`status = $${idx}`); params.push(status); idx++; }
   if (parentId === null) { conditions.push('parent_id IS NULL'); }
   else if (parentId) { conditions.push(`parent_id = $${idx}`); params.push(parentId); idx++; }
   if (search) { conditions.push(`name ILIKE $${idx}`); params.push(`%${search}%`); idx++; }
-  const where = 'WHERE ' + conditions.join(' AND ');
+  const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
   const countRes = await db.query(`SELECT COUNT(*) FROM categories ${where}`, params);
   const total = parseInt(countRes.rows[0].count, 10);
   const offset = (page - 1) * limit;
@@ -20,12 +21,20 @@ async function listByShop(shopId, { status, parentId, search, page = 1, limit = 
 }
 
 async function findById(id, shopId) {
-  const res = await db.query('SELECT * FROM categories WHERE id = $1 AND shop_id = $2', [id, shopId]);
+  if (shopId) {
+    const res = await db.query('SELECT * FROM categories WHERE id = $1 AND shop_id = $2', [id, shopId]);
+    return res.rows[0] || null;
+  }
+  const res = await db.query('SELECT * FROM categories WHERE id = $1', [id]);
   return res.rows[0] || null;
 }
 
 async function findBySlug(slug, shopId) {
-  const res = await db.query('SELECT * FROM categories WHERE slug = $1 AND shop_id = $2', [slug, shopId]);
+  if (shopId) {
+    const res = await db.query('SELECT * FROM categories WHERE slug = $1 AND shop_id = $2', [slug, shopId]);
+    return res.rows[0] || null;
+  }
+  const res = await db.query('SELECT * FROM categories WHERE slug = $1', [slug]);
   return res.rows[0] || null;
 }
 
@@ -66,17 +75,21 @@ async function remove(id, shopId) {
 }
 
 async function countByShop(shopId) {
-  const res = await db.query('SELECT COUNT(*) FROM categories WHERE shop_id = $1', [shopId]);
+  const q = shopId ? 'SELECT COUNT(*) FROM categories WHERE shop_id = $1' : 'SELECT COUNT(*) FROM categories';
+  const res = await db.query(q, shopId ? [shopId] : []);
   return parseInt(res.rows[0].count, 10);
 }
 
 async function getProductCounts(shopId) {
+  const where = shopId
+    ? `WHERE c.shop_id = $1 AND c.status = 'active'`
+    : `WHERE c.status = 'active'`;
   const res = await db.query(
     `SELECT c.id, c.name, c.slug, COUNT(p.id)::int AS product_count
      FROM categories c LEFT JOIN products p ON p.category_id = c.id AND p.shop_id = c.shop_id
-     WHERE c.shop_id = $1 AND c.status = 'active'
+     ${where}
      GROUP BY c.id ORDER BY c.sort_order ASC, c.name ASC`,
-    [shopId]
+    shopId ? [shopId] : []
   );
   return res.rows;
 }

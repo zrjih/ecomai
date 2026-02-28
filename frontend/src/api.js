@@ -187,3 +187,17 @@ export const categories = {
   approveRequest: (id, data) => request('POST', `/categories/requests/${id}/approve`, data),
   rejectRequest: (id, data) => request('POST', `/categories/requests/${id}/reject`, data),
 };
+
+export const coupons = {
+  list: (params) => request('GET', `/coupons${qs(params)}`),
+  get: (id) => request('GET', `/coupons/${id}`),
+  create: (data) => request('POST', '/coupons', data),
+  update: (id, data) => request('PATCH', `/coupons/${id}`, data),
+  delete: (id) => request('DELETE', `/coupons/${id}`),
+};
+
+export const dashboard = {
+  shop: () => request('GET', '/dashboard/shop'),
+  revenueTimeline: (days) => request('GET', `/dashboard/shop/revenue-timeline${qs({ days })}`),
+  platform: () => request('GET', '/dashboard/platform'),
+};

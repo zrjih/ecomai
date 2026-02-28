@@ -1,11 +1,20 @@
 const db = require('../db');
 
 async function listByProduct(productId, shopId) {
+  if (shopId) {
+    const { rows } = await db.query(
+      `SELECT * FROM product_images
+       WHERE product_id = $1 AND shop_id = $2
+       ORDER BY sort_order ASC, created_at ASC`,
+      [productId, shopId]
+    );
+    return rows;
+  }
   const { rows } = await db.query(
     `SELECT * FROM product_images
-     WHERE product_id = $1 AND shop_id = $2
+     WHERE product_id = $1
      ORDER BY sort_order ASC, created_at ASC`,
-    [productId, shopId]
+    [productId]
   );
   return rows;
 }
@@ -58,12 +67,10 @@ async function updateSortOrder(imageId, shopId, sortOrder) {
 /** Fetch images for multiple products at once (for listing pages) */
 async function listByProducts(productIds, shopId) {
   if (!productIds.length) return {};
-  const { rows } = await db.query(
-    `SELECT * FROM product_images
-     WHERE product_id = ANY($1) AND shop_id = $2
-     ORDER BY sort_order ASC, created_at ASC`,
-    [productIds, shopId]
-  );
+  const q = shopId
+    ? `SELECT * FROM product_images WHERE product_id = ANY($1) AND shop_id = $2 ORDER BY sort_order ASC, created_at ASC`
+    : `SELECT * FROM product_images WHERE product_id = ANY($1) ORDER BY sort_order ASC, created_at ASC`;
+  const { rows } = await db.query(q, shopId ? [productIds, shopId] : [productIds]);
   const map = {};
   for (const r of rows) {
     (map[r.product_id] ||= []).push(r);

@@ -17,11 +17,12 @@ async function findById(movementId) {
 }
 
 async function listByShop(shopId, { page = 1, limit = 50, type } = {}) {
-  const conditions = ['shop_id = $1'];
-  const params = [shopId];
-  let idx = 2;
+  const conditions = [];
+  const params = [];
+  let idx = 1;
+  if (shopId) { conditions.push(`shop_id = $${idx}`); params.push(shopId); idx++; }
   if (type) { conditions.push(`type = $${idx}`); params.push(type); idx++; }
-  const where = 'WHERE ' + conditions.join(' AND ');
+  const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
   const countRes = await db.query(`SELECT COUNT(*) FROM inventory_movements ${where}`, params);
   const total = parseInt(countRes.rows[0].count, 10);
   const offset = (page - 1) * limit;

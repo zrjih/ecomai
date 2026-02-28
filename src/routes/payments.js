@@ -2,6 +2,7 @@ const express = require('express');
 const { authRequired, requireRoles, resolveTenant } = require('../middleware/auth');
 const { requireTenantContext } = require('../middleware/tenant');
 const { asyncHandler } = require('../middleware/async-handler');
+const { validateBody } = require('../middleware/validate');
 const paymentService = require('../services/payments');
 const shopRepo = require('../repositories/shops');
 const config = require('../config');
@@ -56,7 +57,10 @@ router.get('/', asyncHandler(async (req, res) => {
   res.json(result);
 }));
 
-router.post('/manual', asyncHandler(async (req, res) => {
+router.post('/manual', validateBody({
+  orderId: { required: true, type: 'string' },
+  amount: { required: true, type: 'number', min: 0.01 },
+}), asyncHandler(async (req, res) => {
   const payment = await paymentService.createManualPayment({
     shopId: req.tenantShopId,
     orderId: req.body.orderId,
@@ -72,7 +76,9 @@ router.get('/:paymentId', asyncHandler(async (req, res) => {
   res.json(payment);
 }));
 
-router.post('/:paymentId/refunds', asyncHandler(async (req, res) => {
+router.post('/:paymentId/refunds', validateBody({
+  amount: { required: true, type: 'number', min: 0.01 },
+}), asyncHandler(async (req, res) => {
   const refund = await paymentService.createRefund({
     shopId: req.tenantShopId, paymentId: req.params.paymentId,
     amount: req.body.amount, reason: req.body.reason,

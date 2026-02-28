@@ -29,7 +29,7 @@ async function sslczGet(endpoint, params) {
 
 async function ensureOrder(shopId, orderId) {
   const order = await orderRepo.findById(orderId);
-  if (!order || order.shop_id !== shopId) {
+  if (!order || (shopId && order.shop_id !== shopId)) {
     throw new DomainError('ORDER_NOT_FOUND', 'Order not found', 404);
   }
   return order;
@@ -116,7 +116,9 @@ async function handleSSLCommerzCallback(body) {
         return { valid: false, payment };
       }
     } catch (_e) {
-      // If validation call fails, trust the callback status
+      // Validation call failed — do NOT trust the unverified callback
+      await paymentRepo.updatePayment(payment.id, { status: 'failed', gateway_response: { error: 'validation_call_failed', raw: body } });
+      return { valid: false, payment: { ...payment, status: 'failed' }, message: 'Gateway validation unreachable' };
     }
 
     await paymentRepo.updatePayment(payment.id, { status: 'completed', gateway_response: body });
@@ -138,10 +140,13 @@ async function createManualPayment({ shopId, orderId, amount, currency, method }
   if (normalizedAmount > Number(order.total_amount)) {
     throw new DomainError('VALIDATION_ERROR', 'payment amount cannot exceed order total', 400);
   }
-  return paymentRepo.createPayment({
+  const payment = await paymentRepo.createPayment({
     shop_id: shopId, order_id: orderId, amount: normalizedAmount,
     currency: currency || 'BDT', method: method || 'manual', status: 'completed',
   });
+  // Update order payment_status to 'paid'
+  await orderRepo.updateOrder(orderId, shopId, { payment_status: 'paid' });
+  return payment;
 }
 
 async function listPayments(shopId, opts) {

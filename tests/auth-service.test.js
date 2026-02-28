@@ -1,4 +1,4 @@
-const { describe, it, before, after } = require('node:test');
+const { describe, it, beforeAll, afterAll } = require('bun:test');
 const assert = require('node:assert/strict');
 const { setup, teardown, shopId, adminUserId } = require('./helpers/setup');
 const authService = require('../src/services/auth');
@@ -7,17 +7,18 @@ const bcrypt = require('bcryptjs');
 
 describe('auth service', () => {
   let testEmail;
-  before(async () => {
+  beforeAll(async () => {
     await setup();
     testEmail = `auth-test-${Date.now()}@test.dev`;
     const hash = await bcrypt.hash('password123', 10);
+    const crypto = require('crypto');
     await db.query(
       `INSERT INTO users (id, shop_id, email, password_hash, role, full_name)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [`user_auth_${Date.now()}`, shopId, testEmail, hash, 'shop_admin', 'Auth Test']
+      [crypto.randomUUID(), shopId, testEmail, hash, 'shop_admin', 'Auth Test']
     );
   });
-  after(teardown);
+  afterAll(teardown);
 
   it('login returns access and refresh tokens', async () => {
     const result = await authService.login(testEmail, 'password123');

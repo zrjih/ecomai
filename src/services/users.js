@@ -70,11 +70,18 @@ async function updateUser(userId, patch) {
   const user = await userRepo.findById(userId);
   if (!user) throw new DomainError('USER_NOT_FOUND', 'User not found', 404);
 
-  if (patch.password) {
-    patch.password_hash = await bcrypt.hash(patch.password, SALT_ROUNDS);
-    delete patch.password;
+  // Whitelist allowed fields — prevent role/shop_id/is_active escalation
+  const UPDATABLE_FIELDS = ['full_name', 'phone', 'email', 'password', 'is_active'];
+  const safePatch = {};
+  for (const key of UPDATABLE_FIELDS) {
+    if (patch[key] !== undefined) safePatch[key] = patch[key];
   }
-  const updated = await userRepo.updateUser(userId, patch);
+
+  if (safePatch.password) {
+    safePatch.password_hash = await bcrypt.hash(safePatch.password, SALT_ROUNDS);
+    delete safePatch.password;
+  }
+  const updated = await userRepo.updateUser(userId, safePatch);
   return sanitizeUser(updated);
 }
 

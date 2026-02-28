@@ -48,4 +48,8 @@ export const storeApi = {
 
   // Checkout (creates order + initiates SSLCommerz payment + auto-creates customer)
   checkout: (slug, data) => request('POST', `/shops/${slug}/checkout`, data),
+
+  // Coupon validation
+  validateCoupon: (slug, code, orderTotal) =>
+    request('POST', `/shops/${slug}/validate-coupon`, { code, order_amount: orderTotal }),
 };

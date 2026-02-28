@@ -2,6 +2,7 @@ const express = require('express');
 const { authRequired, requireRoles, resolveTenant } = require('../middleware/auth');
 const { requireTenantContext } = require('../middleware/tenant');
 const { asyncHandler } = require('../middleware/async-handler');
+const { validateBody } = require('../middleware/validate');
 const campaignService = require('../services/marketing-campaigns');
 const shopService = require('../services/shops');
 
@@ -25,7 +26,10 @@ router.get('/:campaignId', asyncHandler(async (req, res) => {
   res.json(campaign);
 }));
 
-router.post('/', asyncHandler(async (req, res) => {
+router.post('/', validateBody({
+  name: { required: true, type: 'string', minLength: 1 },
+  type: { required: true, type: 'string', oneOf: ['email', 'sms', 'facebook', 'instagram', 'tiktok', 'google_ads'] },
+}), asyncHandler(async (req, res) => {
   const campaign = await campaignService.createCampaign({
     shopId: req.tenantShopId, ...req.body,
   });

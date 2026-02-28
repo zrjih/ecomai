@@ -1,0 +1,7 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "docker cp": true,
+        "ForEach-Object": true,
+        "Test-Path": true
+    }
+}

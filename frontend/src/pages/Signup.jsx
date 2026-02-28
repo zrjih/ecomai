@@ -31,6 +31,14 @@ export default function Signup() {
     setLoading(true);
     try {
       const result = await register.create(form);
+
+      // Paid plan — backend returns SSLCommerz checkout URL
+      if (result.requiresPayment && result.checkoutUrl) {
+        window.location.href = result.checkoutUrl;
+        return; // don't setLoading(false) — we're leaving the page
+      }
+
+      // Free plan — immediate login
       setTokens(result.accessToken, result.refreshToken);
       setUser(result.user);
       navigate('/admin');
@@ -40,6 +48,8 @@ export default function Signup() {
       setLoading(false);
     }
   };
+
+  const isPaidPlan = ['starter', 'growth', 'enterprise'].includes(form.plan);
 
   const inputCls = "w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition bg-gray-50 focus:bg-white text-sm";
   const labelCls = "block text-sm font-medium text-gray-700 mb-1.5";
@@ -165,17 +175,23 @@ export default function Signup() {
                 </select>
               </div>
             </div>
+            {isPaidPlan && (
+              <p className="text-xs text-amber-600 mt-2 flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" /></svg>
+                You'll be redirected to SSLCommerz to complete payment after submitting.
+              </p>
+            )}
 
             <button type="submit" disabled={loading}
               className="w-full py-3.5 bg-gradient-to-r from-primary-600 to-teal-500 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-primary-200 transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none flex items-center justify-center gap-2">
               {loading ? (
                 <span className="flex items-center gap-2">
                   <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                  Creating your store...
+                  {isPaidPlan ? 'Redirecting to payment…' : 'Creating your store...'}
                 </span>
               ) : (
                 <>
-                  Create Store & Start Selling
+                  {isPaidPlan ? 'Continue to Payment' : 'Create Store & Start Selling'}
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
                 </>
               )}

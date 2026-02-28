@@ -26,9 +26,21 @@ function requireRoles(roles) {
   };
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Resolve tenant context.
+ * - super_admin: uses x-shop-id header if provided, otherwise null (= all shops).
+ * - Other roles: scoped to the shop_id in their JWT.
+ */
 function resolveTenant(req, res, next) {
   if (req.auth.role === 'super_admin') {
-    req.tenantShopId = req.headers['x-shop-id'] || null;
+    const shopHeader = req.headers['x-shop-id'] || null;
+    if (shopHeader && !UUID_RE.test(shopHeader)) {
+      return res.status(400).json({ message: 'x-shop-id must be a valid UUID' });
+    }
+    req.tenantShopId = shopHeader;
+    req.isSuperAdmin = true;
     return next();
   }
 
@@ -37,6 +49,7 @@ function resolveTenant(req, res, next) {
   }
 
   req.tenantShopId = req.auth.shop_id;
+  req.isSuperAdmin = false;
   return next();
 }
 

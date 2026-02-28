@@ -2,6 +2,7 @@ const express = require('express');
 const { authRequired, requireRoles, resolveTenant } = require('../middleware/auth');
 const { requireTenantContext } = require('../middleware/tenant');
 const { asyncHandler } = require('../middleware/async-handler');
+const { validateBody } = require('../middleware/validate');
 const shopService = require('../services/shops');
 
 const router = express.Router();
@@ -23,7 +24,10 @@ router.get('/', requireRoles(['super_admin']), asyncHandler(async (req, res) => 
   res.json(result);
 }));
 
-router.post('/', requireRoles(['super_admin']), asyncHandler(async (req, res) => {
+router.post('/', requireRoles(['super_admin']), validateBody({
+  name: { required: true, type: 'string', minLength: 1 },
+  slug: { required: true, type: 'string', minLength: 1 },
+}), asyncHandler(async (req, res) => {
   const shop = await shopService.createShop(req.body);
   res.status(201).json(shop);
 }));

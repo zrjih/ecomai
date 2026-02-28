@@ -9,7 +9,7 @@ async function createDeliveryRequest({ shopId, orderId, pickup_address, delivery
     throw new DomainError('VALIDATION_ERROR', 'pickup_address and delivery_address are required', 400);
   }
   const order = await orderRepo.findById(orderId);
-  if (!order || order.shop_id !== shopId) {
+  if (!order || (shopId && order.shop_id !== shopId)) {
     throw new DomainError('ORDER_NOT_FOUND', 'Order not found', 404);
   }
   const existing = await deliveryRepo.findByOrderAndShop(orderId, shopId);
@@ -31,13 +31,13 @@ async function updateDeliveryStatus({ shopId, deliveryRequestId, status }) {
   if (!ALLOWED_STATUSES.includes(status)) {
     throw new DomainError('INVALID_STATUS', `status must be one of: ${ALLOWED_STATUSES.join(', ')}`, 400);
   }
-  return deliveryRepo.updateDeliveryRequest(deliveryRequestId, { status });
+  return deliveryRepo.updateDeliveryRequest(deliveryRequestId, shopId, { status });
 }
 
 async function assignDriver({ shopId, deliveryRequestId, driverUserId }) {
   const request = await deliveryRepo.findByIdAndShop(deliveryRequestId, shopId);
   if (!request) throw new DomainError('DELIVERY_NOT_FOUND', 'delivery request not found', 404);
-  return deliveryRepo.updateDeliveryRequest(deliveryRequestId, {
+  return deliveryRepo.updateDeliveryRequest(deliveryRequestId, shopId, {
     assigned_driver_user_id: driverUserId, status: 'assigned',
   });
 }
@@ -54,7 +54,7 @@ async function driverPostLocation({ driverUserId, deliveryRequestId, lat, lng })
   }
   const updates = request.location_updates || [];
   updates.push({ lat, lng, updated_at: new Date().toISOString() });
-  return deliveryRepo.updateDeliveryRequest(deliveryRequestId, { location_updates: updates });
+  return deliveryRepo.updateDeliveryRequest(deliveryRequestId, null, { location_updates: updates });
 }
 
 async function driverUpdateStatus({ driverUserId, deliveryRequestId, status }) {
@@ -65,7 +65,7 @@ async function driverUpdateStatus({ driverUserId, deliveryRequestId, status }) {
   if (!ALLOWED_STATUSES.includes(status)) {
     throw new DomainError('INVALID_STATUS', `status must be one of: ${ALLOWED_STATUSES.join(', ')}`, 400);
   }
-  return deliveryRepo.updateDeliveryRequest(deliveryRequestId, { status });
+  return deliveryRepo.updateDeliveryRequest(deliveryRequestId, null, { status });
 }
 
 module.exports = {

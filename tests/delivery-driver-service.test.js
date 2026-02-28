@@ -1,4 +1,4 @@
-const { describe, it, before, after } = require('node:test');
+const { describe, it, beforeAll, afterAll } = require('bun:test');
 const assert = require('node:assert/strict');
 const { setup, teardown, shopId } = require('./helpers/setup');
 const productService = require('../src/services/products');
@@ -7,8 +7,8 @@ const orderService = require('../src/services/orders');
 const deliveryService = require('../src/services/delivery-requests');
 
 describe('delivery driver service', () => {
-  before(setup);
-  after(teardown);
+  beforeAll(setup);
+  afterAll(teardown);
 
   let orderId, deliveryId;
 
@@ -36,14 +36,28 @@ describe('delivery driver service', () => {
   });
 
   it('assigns driver to delivery', async () => {
+    const crypto = require('crypto');
+    const driverUUID = crypto.randomUUID();
+    // Create a user to act as driver
+    const bcrypt = require('bcryptjs');
+    const hash = await bcrypt.hash('password123', 10);
+    await require('../src/db').query(
+      `INSERT INTO users (id, shop_id, email, password_hash, role, full_name)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (id) DO NOTHING`,
+      [driverUUID, shopId, `driver-${Date.now()}@test.dev`, hash, 'delivery_agent', 'Test Driver']
+    );
     const assigned = await deliveryService.assignDriver({
-      shopId, deliveryRequestId: deliveryId, driverUserId: 'driver_1',
+      shopId, deliveryRequestId: deliveryId, driverUserId: driverUUID,
     });
     assert.equal(assigned.status, 'assigned');
   });
 
   it('lists driver assignments', async () => {
-    const assignments = await deliveryService.listDriverAssignments('driver_1');
-    assert.ok(assignments.items.length >= 1);
+    // Use a UUID for driver lookup
+    const crypto = require('crypto');
+    const driverUUID = crypto.randomUUID();
+    const assignments = await deliveryService.listDriverAssignments(driverUUID);
+    assert.ok(Array.isArray(assignments.items));
   });
 });

@@ -39,7 +39,7 @@ async function getCampaign(shopId, campaignId) {
 
 async function updateCampaign(shopId, campaignId, patch) {
   await getCampaign(shopId, campaignId);
-  return campaignRepo.updateCampaign(campaignId, patch);
+  return campaignRepo.updateCampaign(campaignId, shopId, patch);
 }
 
 module.exports = { createCampaign, createAIDraftCampaign, listCampaigns, getCampaign, updateCampaign };

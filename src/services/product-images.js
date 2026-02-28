@@ -1,6 +1,6 @@
 const imageRepo = require('../repositories/product-images');
 const productRepo = require('../repositories/products');
-const DomainError = require('../errors/domain-error');
+const { DomainError } = require('../errors/domain-error');
 
 async function listImages(productId, shopId) {
   // Verify product belongs to shop

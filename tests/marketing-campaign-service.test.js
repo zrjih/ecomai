@@ -1,11 +1,11 @@
-const { describe, it, before, after } = require('node:test');
+const { describe, it, beforeAll, afterAll } = require('bun:test');
 const assert = require('node:assert/strict');
 const { setup, teardown, shopId, adminUserId } = require('./helpers/setup');
 const marketingService = require('../src/services/marketing-campaigns');
 
 describe('marketing campaign service', () => {
-  before(setup);
-  after(teardown);
+  beforeAll(setup);
+  afterAll(teardown);
 
   it('creates AI draft campaign with generated content', async () => {
     const campaign = await marketingService.createAIDraftCampaign({

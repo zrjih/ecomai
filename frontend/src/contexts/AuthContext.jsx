@@ -7,9 +7,17 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const logout = useCallback(() => {
-    clearTokens();
-    setUser(null);
+  const logout = useCallback(async () => {
+    try {
+      // Revoke refresh token server-side
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (refreshToken) {
+        await authApi.logout(refreshToken).catch(() => {});
+      }
+    } finally {
+      clearTokens();
+      setUser(null);
+    }
   }, []);
 
   useEffect(() => {

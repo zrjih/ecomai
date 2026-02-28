@@ -2,6 +2,7 @@ const express = require('express');
 const { authRequired, requireRoles, resolveTenant } = require('../middleware/auth');
 const { requireTenantContext } = require('../middleware/tenant');
 const { asyncHandler } = require('../middleware/async-handler');
+const { validateBody } = require('../middleware/validate');
 const customerService = require('../services/customers');
 
 const router = express.Router();
@@ -22,7 +23,9 @@ router.get('/:customerId', asyncHandler(async (req, res) => {
   res.json(customer);
 }));
 
-router.post('/', asyncHandler(async (req, res) => {
+router.post('/', validateBody({
+  email: { required: true, type: 'email' },
+}), asyncHandler(async (req, res) => {
   const customer = await customerService.createCustomer({
     shopId: req.tenantShopId, ...req.body,
   });

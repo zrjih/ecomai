@@ -24,11 +24,21 @@ async function createUser({ email, password_hash, full_name, phone, role, shop_i
 
 async function listByShop(shopId, { page = 1, limit = 50 } = {}) {
   const offset = (page - 1) * limit;
-  const countRes = await db.query('SELECT COUNT(*) FROM users WHERE shop_id = $1', [shopId]);
+  if (shopId) {
+    const countRes = await db.query('SELECT COUNT(*) FROM users WHERE shop_id = $1', [shopId]);
+    const total = parseInt(countRes.rows[0].count, 10);
+    const res = await db.query(
+      'SELECT * FROM users WHERE shop_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
+      [shopId, limit, offset]
+    );
+    return { items: res.rows, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+  // No shop filter — super admin sees all users
+  const countRes = await db.query('SELECT COUNT(*) FROM users');
   const total = parseInt(countRes.rows[0].count, 10);
   const res = await db.query(
-    'SELECT * FROM users WHERE shop_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
-    [shopId, limit, offset]
+    'SELECT u.*, s.name as shop_name, s.slug as shop_slug FROM users u LEFT JOIN shops s ON u.shop_id = s.id ORDER BY u.created_at DESC LIMIT $1 OFFSET $2',
+    [limit, offset]
   );
   return { items: res.rows, total, page, limit, totalPages: Math.ceil(total / limit) };
 }

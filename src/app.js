@@ -4,6 +4,7 @@ const path = require('path');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { errorHandler } = require('./middleware/error-handler');
+const config = require('./config');
 
 // Routes
 const authRoutes = require('./routes/auth');
@@ -23,22 +24,47 @@ const categoryRoutes = require('./routes/categories');
 const driverRoutes = require('./routes/driver');
 const publicRoutes = require('./routes/public');
 const productImageRoutes = require('./routes/product-images');
+const couponRoutes = require('./routes/coupons');
+const dashboardRoutes = require('./routes/dashboard');
 
 const app = express();
 
 // Security
-app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
-app.use(cors());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+      imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
+      connectSrc: ["'self'", config.apiUrl, config.appUrl, 'https://sandbox.sslcommerz.com', 'https://securepay.sslcommerz.com'],
+      frameSrc: ["'self'", 'https://sandbox.sslcommerz.com', 'https://securepay.sslcommerz.com'],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+app.use(cors({
+  origin: config.nodeEnv === 'production'
+    ? [config.appUrl]
+    : [config.appUrl, 'http://localhost:5173', 'http://localhost:3000'],
+  credentials: true,
+}));
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true })); // SSLCommerz callbacks use form POST
 
 // Rate limiting
 const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false });
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
+const customerAuthLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false,
+  message: { code: 'RATE_LIMITED', message: 'Too many login attempts, please try again later' },
+});
 
 app.use('/v1', apiLimiter);
 app.use('/v1/auth', authLimiter);
 app.use('/v1/register', authLimiter);
+// Rate limit customer auth endpoints (storefront login/register)
+app.use('/v1/public/shops/:slug/auth', customerAuthLimiter);
 
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
@@ -71,6 +97,8 @@ app.use('/v1/website-settings', websiteSettingsRoutes);
 app.use('/v1/categories', categoryRoutes);
 app.use('/v1/products', productImageRoutes);
 app.use('/v1/driver', driverRoutes);
+app.use('/v1/coupons', couponRoutes);
+app.use('/v1/dashboard', dashboardRoutes);
 
 // SPA fallback — serve index.html for any non-API route
 app.get('*', (req, res) => {

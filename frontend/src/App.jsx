@@ -8,6 +8,8 @@ import { StoreProvider } from './contexts/StoreContext';
 import Landing from './pages/Landing';
 import Pricing from './pages/Pricing';
 import Signup from './pages/Signup';
+import SignupSuccess from './pages/SignupSuccess';
+import SignupFail from './pages/SignupFail';
 import Login from './pages/Login';
 
 // Admin pages
@@ -26,6 +28,7 @@ import WebsiteSettings from './pages/WebsiteSettings';
 import ShopSettings from './pages/ShopSettings';
 import AllShops from './pages/AllShops';
 import AllUsers from './pages/AllUsers';
+import Coupons from './pages/Coupons';
 
 // Storefront pages
 import StorefrontLayout from './storefront/StorefrontLayout';
@@ -88,6 +91,8 @@ export default function App() {
       <Route path="/" element={<Landing />} />
       <Route path="/pricing" element={<Pricing />} />
       <Route path="/signup" element={<Signup />} />
+      <Route path="/signup/success" element={<SignupSuccess />} />
+      <Route path="/signup/fail" element={<SignupFail />} />
       <Route path="/login" element={<Login />} />
 
       {/* Public storefront — no auth needed */}
@@ -105,6 +110,7 @@ export default function App() {
         <Route path="campaigns" element={<Campaigns />} />
         <Route path="deliveries" element={<Deliveries />} />
         <Route path="payments" element={<Payments />} />
+        <Route path="coupons" element={<Coupons />} />
         <Route path="website-settings" element={<WebsiteSettings />} />
         <Route path="shop" element={<ShopSettings />} />
         <Route path="all-shops" element={<AllShops />} />

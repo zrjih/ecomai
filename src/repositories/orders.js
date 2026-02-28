@@ -32,12 +32,13 @@ async function addOrderItems(items, client) {
 }
 
 async function listByShop(shopId, { page = 1, limit = 50, status, search } = {}) {
-  const conditions = ['shop_id = $1'];
-  const params = [shopId];
-  let idx = 2;
+  const conditions = [];
+  const params = [];
+  let idx = 1;
+  if (shopId) { conditions.push(`shop_id = $${idx}`); params.push(shopId); idx++; }
   if (status) { conditions.push(`status = $${idx}`); params.push(status); idx++; }
   if (search) { conditions.push(`(customer_email ILIKE $${idx} OR id::text ILIKE $${idx})`); params.push(`%${search}%`); idx++; }
-  const where = 'WHERE ' + conditions.join(' AND ');
+  const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
   const countRes = await db.query(`SELECT COUNT(*) FROM orders ${where}`, params);
   const total = parseInt(countRes.rows[0].count, 10);
   const offset = (page - 1) * limit;
@@ -49,7 +50,11 @@ async function listByShop(shopId, { page = 1, limit = 50, status, search } = {})
 }
 
 async function findByIdAndShop(id, shopId) {
-  const res = await db.query('SELECT * FROM orders WHERE id = $1 AND shop_id = $2', [id, shopId]);
+  if (shopId) {
+    const res = await db.query('SELECT * FROM orders WHERE id = $1 AND shop_id = $2', [id, shopId]);
+    return res.rows[0] || null;
+  }
+  const res = await db.query('SELECT * FROM orders WHERE id = $1', [id]);
   return res.rows[0] || null;
 }
 
@@ -73,9 +78,17 @@ async function updateOrder(orderId, shopId, patch, client) {
   }
   if (sets.length === 0) return findByIdAndShop(orderId, shopId);
   sets.push(`updated_at = now()`);
-  params.push(orderId, shopId);
+  if (shopId) {
+    params.push(orderId, shopId);
+    const res = await q.query(
+      `UPDATE orders SET ${sets.join(', ')} WHERE id = $${idx} AND shop_id = $${idx + 1} RETURNING *`,
+      params
+    );
+    return res.rows[0] || null;
+  }
+  params.push(orderId);
   const res = await q.query(
-    `UPDATE orders SET ${sets.join(', ')} WHERE id = $${idx} AND shop_id = $${idx + 1} RETURNING *`,
+    `UPDATE orders SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
     params
   );
   return res.rows[0] || null;
@@ -98,7 +111,8 @@ async function listByCustomer(customerId, { page = 1, limit = 20 } = {}) {
 }
 
 async function countByShop(shopId) {
-  const res = await db.query('SELECT COUNT(*) FROM orders WHERE shop_id = $1', [shopId]);
+  const q = shopId ? 'SELECT COUNT(*) FROM orders WHERE shop_id = $1' : 'SELECT COUNT(*) FROM orders';
+  const res = await db.query(q, shopId ? [shopId] : []);
   return parseInt(res.rows[0].count, 10);
 }
 

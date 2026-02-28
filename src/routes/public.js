@@ -10,6 +10,7 @@ const imageRepo = require('../repositories/product-images');
 const customerService = require('../services/customers');
 const orderService = require('../services/orders');
 const paymentService = require('../services/payments');
+const couponService = require('../services/coupons');
 const jwt = require('jsonwebtoken');
 const { jwtSecret } = require('../config');
 const { DomainError } = require('../errors/domain-error');
@@ -173,13 +174,24 @@ router.post('/shops/:slug/account/change-password', customerAuth, asyncHandler(a
   res.json(result);
 }));
 
+// --- Storefront coupon validation ---
+
+router.post('/shops/:slug/validate-coupon', asyncHandler(async (req, res) => {
+  const shop = await shopRepo.findBySlug(req.params.slug);
+  if (!shop) throw new DomainError('SHOP_NOT_FOUND', 'Shop not found', 404);
+  const { code, order_amount } = req.body;
+  if (!code) throw new DomainError('VALIDATION_ERROR', 'code is required', 400);
+  const result = await couponService.validateCoupon(shop.id, code, Number(order_amount) || 0);
+  res.json({ valid: true, discount: result.discount, coupon_type: result.coupon.type, coupon_value: result.coupon.value });
+}));
+
 // --- Storefront checkout ---
 
 router.post('/shops/:slug/checkout', asyncHandler(async (req, res) => {
   const shop = await shopRepo.findBySlug(req.params.slug);
   if (!shop) throw new DomainError('SHOP_NOT_FOUND', 'Shop not found', 404);
 
-  const { customer_email, customer_id, items, shipping_address, customer_name, customer_phone, customer_password, order_notes } = req.body;
+  const { customer_email, customer_id, items, shipping_address, customer_name, customer_phone, customer_password, order_notes, coupon_code } = req.body;
 
   // Auto-create or find customer by email
   const { customer, token: customerToken } = await customerService.findOrCreateByEmail({
@@ -205,7 +217,7 @@ router.post('/shops/:slug/checkout', asyncHandler(async (req, res) => {
   // Create order linked to customer
   const order = await orderService.createOrder({
     shopId: shop.id, customer_email, customer_id: customer.id, items, shipping_address,
-    notes: order_notes || undefined,
+    notes: order_notes || undefined, coupon_code: coupon_code || undefined,
   });
 
   // Initiate SSLCommerz payment

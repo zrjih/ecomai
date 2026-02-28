@@ -2,6 +2,7 @@ const express = require('express');
 const { authRequired, requireRoles, resolveTenant } = require('../middleware/auth');
 const { requireTenantContext } = require('../middleware/tenant');
 const { asyncHandler } = require('../middleware/async-handler');
+const { validateBody } = require('../middleware/validate');
 const deliveryService = require('../services/delivery-requests');
 
 const router = express.Router();
@@ -18,7 +19,11 @@ router.get('/', asyncHandler(async (req, res) => {
   res.json(result);
 }));
 
-router.post('/', asyncHandler(async (req, res) => {
+router.post('/', validateBody({
+  orderId: { required: true, type: 'string' },
+  pickup_address: { required: true },
+  delivery_address: { required: true },
+}), asyncHandler(async (req, res) => {
   const delivery = await deliveryService.createDeliveryRequest({
     shopId: req.tenantShopId,
     orderId: req.body.orderId,
@@ -29,14 +34,18 @@ router.post('/', asyncHandler(async (req, res) => {
   res.status(201).json(delivery);
 }));
 
-router.patch('/:deliveryRequestId/status', asyncHandler(async (req, res) => {
+router.patch('/:deliveryRequestId/status', validateBody({
+  status: { required: true, type: 'string', oneOf: ['pending', 'assigned', 'picked_up', 'in_transit', 'delivered', 'cancelled'] },
+}), asyncHandler(async (req, res) => {
   const request = await deliveryService.updateDeliveryStatus({
     shopId: req.tenantShopId, deliveryRequestId: req.params.deliveryRequestId, status: req.body.status,
   });
   res.json(request);
 }));
 
-router.patch('/:deliveryRequestId/assign', asyncHandler(async (req, res) => {
+router.patch('/:deliveryRequestId/assign', validateBody({
+  driver_user_id: { required: true, type: 'string' },
+}), asyncHandler(async (req, res) => {
   const request = await deliveryService.assignDriver({
     shopId: req.tenantShopId, deliveryRequestId: req.params.deliveryRequestId, driverUserId: req.body.driver_user_id,
   });

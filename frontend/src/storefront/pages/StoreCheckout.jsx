@@ -54,6 +54,13 @@ export default function StoreCheckout() {
   const [order, setOrder] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
+  // Coupon state
+  const [couponCode, setCouponCode] = useState('');
+  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [couponApplied, setCouponApplied] = useState(null); // holds validated coupon info
+  const [couponError, setCouponError] = useState('');
+  const [couponLoading, setCouponLoading] = useState(false);
+
   useEffect(() => {
     const token = localStorage.getItem(`customer_token_${shopSlug}`);
     if (token) {
@@ -83,6 +90,24 @@ export default function StoreCheckout() {
 
   const update = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
 
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setCouponError(''); setCouponLoading(true);
+    try {
+      const res = await storeApi.validateCoupon(shopSlug, couponCode.trim(), total);
+      setCouponDiscount(res.discount || 0);
+      setCouponApplied(res);
+    } catch (err) {
+      setCouponError(err.message || 'Invalid coupon');
+      setCouponDiscount(0);
+      setCouponApplied(null);
+    } finally { setCouponLoading(false); }
+  };
+
+  const handleRemoveCoupon = () => {
+    setCouponCode(''); setCouponDiscount(0); setCouponApplied(null); setCouponError('');
+  };
+
   const canProceedStep0 = form.email && form.name;
   const canProceedStep1 = form.street && form.city && form.zip;
 
@@ -95,6 +120,7 @@ export default function StoreCheckout() {
         customer_phone: form.phone,
         customer_password: form.password || undefined,
         order_notes: form.notes || undefined,
+        coupon_code: couponApplied ? couponCode.trim() : undefined,
         items: items.map((i) => ({
           product_id: i.product_id,
           variant_id: i.variant_id,
@@ -383,10 +409,54 @@ export default function StoreCheckout() {
                 <span style={{ color: t.textMuted }}>Shipping</span>
                 <span className="font-medium" style={{ color: '#16a34a' }}>Free</span>
               </div>
+
+              {/* Coupon code input */}
+              <div className="pt-1">
+                {couponApplied ? (
+                  <div className="flex items-center justify-between p-2.5" style={{ backgroundColor: '#f0fdf4', borderRadius: t.radius, border: '1px solid #bbf7d0' }}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-600 text-sm">🎟️</span>
+                      <span className="text-sm font-medium text-green-700">{couponCode.toUpperCase()}</span>
+                    </div>
+                    <button onClick={handleRemoveCoupon} className="text-xs text-red-500 hover:underline font-medium">Remove</button>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Coupon code"
+                        value={couponCode}
+                        onChange={(e) => { setCouponCode(e.target.value); setCouponError(''); }}
+                        onKeyDown={(e) => e.key === 'Enter' && handleApplyCoupon()}
+                        className="flex-1 px-3 py-2 text-sm outline-none transition"
+                        style={inputStyle}
+                      />
+                      <button
+                        onClick={handleApplyCoupon}
+                        disabled={couponLoading || !couponCode.trim()}
+                        className="px-4 py-2 text-xs font-semibold transition hover:opacity-90 disabled:opacity-40 shrink-0"
+                        style={{ backgroundColor: t.primary, color: t.bg, borderRadius: t.buttonRadius }}
+                      >
+                        {couponLoading ? '...' : 'Apply'}
+                      </button>
+                    </div>
+                    {couponError && <p className="text-xs mt-1.5 text-red-500">{couponError}</p>}
+                  </div>
+                )}
+              </div>
+
+              {couponDiscount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span style={{ color: '#16a34a' }}>Discount</span>
+                  <span className="font-medium" style={{ color: '#16a34a' }}>−{formatPrice(couponDiscount)}</span>
+                </div>
+              )}
+
               <hr style={{ borderColor: t.border }} />
               <div className="flex justify-between">
                 <span className="font-bold" style={{ color: t.text }}>Total</span>
-                <span className="text-xl font-bold" style={{ color: t.primary }}>{formatPrice(total)}</span>
+                <span className="text-xl font-bold" style={{ color: t.primary }}>{formatPrice(total - couponDiscount)}</span>
               </div>
             </div>
 
@@ -400,7 +470,7 @@ export default function StoreCheckout() {
                 {loading ? (
                   <><svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> Processing...</>
                 ) : (
-                  <>🔒 Pay Now — {formatPrice(total)}</>
+                  <>🔒 Pay Now — {formatPrice(total - couponDiscount)}</>  
                 )}
               </button>
             ) : (

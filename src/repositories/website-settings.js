@@ -1,7 +1,12 @@
 const db = require('../db');
 
 async function getByShop(shopId) {
-  const res = await db.query('SELECT * FROM website_settings WHERE shop_id = $1', [shopId]);
+  if (shopId) {
+    const res = await db.query('SELECT * FROM website_settings WHERE shop_id = $1', [shopId]);
+    return res.rows[0] || null;
+  }
+  // Super admin with no shop — return first available settings
+  const res = await db.query('SELECT * FROM website_settings ORDER BY created_at LIMIT 1');
   return res.rows[0] || null;
 }
 

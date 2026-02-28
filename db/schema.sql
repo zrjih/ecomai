@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS shops (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name                  TEXT NOT NULL,
   slug                  TEXT NOT NULL UNIQUE,
-  status                TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended','closed')),
+  status                TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended','closed','pending_payment')),
   industry              TEXT,
   subscription_plan     TEXT NOT NULL DEFAULT 'free',
   logo_url              TEXT,
@@ -283,6 +283,22 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- ── Subscription Payments (plan upgrades via SSLCommerz) ────
+CREATE TABLE IF NOT EXISTS subscription_payments (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  shop_id           UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
+  user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  plan_slug         TEXT NOT NULL,
+  amount            NUMERIC(10,2) NOT NULL,
+  currency          TEXT NOT NULL DEFAULT 'BDT',
+  billing_cycle     TEXT NOT NULL DEFAULT 'monthly' CHECK (billing_cycle IN ('monthly','yearly')),
+  status            TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','completed','failed','cancelled')),
+  gateway_tran_id   TEXT,
+  gateway_response  JSONB,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ── Audit Log ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS audit_log (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -326,3 +342,5 @@ CREATE INDEX IF NOT EXISTS idx_refresh_user        ON refresh_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_refresh_hash        ON refresh_tokens(token);
 CREATE INDEX IF NOT EXISTS idx_audit_shop          ON audit_log(shop_id);
 CREATE INDEX IF NOT EXISTS idx_audit_entity        ON audit_log(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_sub_payments_shop   ON subscription_payments(shop_id);
+CREATE INDEX IF NOT EXISTS idx_sub_payments_tran   ON subscription_payments(gateway_tran_id);

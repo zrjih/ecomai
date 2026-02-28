@@ -2,6 +2,7 @@ const express = require('express');
 const { authRequired, requireRoles, resolveTenant } = require('../middleware/auth');
 const { requireTenantContext } = require('../middleware/tenant');
 const { asyncHandler } = require('../middleware/async-handler');
+const { validateBody } = require('../middleware/validate');
 const categoryService = require('../services/categories');
 const catReqService = require('../services/category-requests');
 
@@ -33,7 +34,10 @@ router.get('/:id', asyncHandler(async (req, res) => {
 }));
 
 // Only super_admin can create/update/delete categories
-router.post('/', requireRoles(['super_admin']), asyncHandler(async (req, res) => {
+router.post('/', requireRoles(['super_admin']), validateBody({
+  name: { required: true, type: 'string', minLength: 1 },
+  slug: { required: true, type: 'string', minLength: 1 },
+}), asyncHandler(async (req, res) => {
   const cat = await categoryService.createCategory({ shopId: req.tenantShopId, ...req.body });
   res.status(201).json(cat);
 }));
@@ -51,7 +55,9 @@ router.delete('/:id', requireRoles(['super_admin']), asyncHandler(async (req, re
 // ── Category Requests ──
 
 // Shop admins can submit requests
-router.post('/requests', requireRoles(['shop_admin', 'shop_user']), asyncHandler(async (req, res) => {
+router.post('/requests', requireRoles(['shop_admin', 'shop_user']), validateBody({
+  name: { required: true, type: 'string', minLength: 2 },
+}), asyncHandler(async (req, res) => {
   const result = await catReqService.createRequest({
     shopId: req.tenantShopId,
     name: req.body.name,

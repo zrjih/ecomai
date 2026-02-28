@@ -6,7 +6,7 @@ async function createDeliveryRequest(data) {
      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
     [data.order_id, data.shop_id, data.status || 'pending', data.assigned_driver_user_id || null,
      data.pickup_address ? JSON.stringify(data.pickup_address) : null,
-     data.delivery_address ? JSON.stringify(data.delivery_address) : null,
+     (data.dropoff_address || data.delivery_address) ? JSON.stringify(data.dropoff_address || data.delivery_address) : null,
      data.estimated_delivery || null]
   );
   return res.rows[0];
@@ -18,7 +18,11 @@ async function findById(requestId) {
 }
 
 async function findByIdAndShop(requestId, shopId) {
-  const res = await db.query('SELECT * FROM delivery_requests WHERE id = $1 AND shop_id = $2', [requestId, shopId]);
+  if (shopId) {
+    const res = await db.query('SELECT * FROM delivery_requests WHERE id = $1 AND shop_id = $2', [requestId, shopId]);
+    return res.rows[0] || null;
+  }
+  const res = await db.query('SELECT * FROM delivery_requests WHERE id = $1', [requestId]);
   return res.rows[0] || null;
 }
 
@@ -30,7 +34,7 @@ async function findByOrderAndShop(orderId, shopId) {
   return res.rows[0] || null;
 }
 
-async function updateDeliveryRequest(requestId, patch) {
+async function updateDeliveryRequest(requestId, shopId, patch) {
   const allowed = ['status', 'assigned_driver_user_id', 'pickup_address', 'dropoff_address', 'notes', 'estimated_delivery', 'location_updates'];
   const sets = [];
   const params = [];
@@ -45,20 +49,27 @@ async function updateDeliveryRequest(requestId, patch) {
   if (sets.length === 0) return findById(requestId);
   sets.push(`updated_at = now()`);
   params.push(requestId);
+  let where = `id = $${idx}`;
+  if (shopId) {
+    idx++;
+    params.push(shopId);
+    where += ` AND shop_id = $${idx}`;
+  }
   const res = await db.query(
-    `UPDATE delivery_requests SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
+    `UPDATE delivery_requests SET ${sets.join(', ')} WHERE ${where} RETURNING *`,
     params
   );
   return res.rows[0] || null;
 }
 
 async function listByShop(shopId, { page = 1, limit = 50, status, search } = {}) {
-  const conditions = ['shop_id = $1'];
-  const params = [shopId];
-  let idx = 2;
+  const conditions = [];
+  const params = [];
+  let idx = 1;
+  if (shopId) { conditions.push(`shop_id = $${idx}`); params.push(shopId); idx++; }
   if (status) { conditions.push(`status = $${idx}`); params.push(status); idx++; }
   if (search) { conditions.push(`(id::text ILIKE $${idx} OR order_id::text ILIKE $${idx} OR status ILIKE $${idx})`); params.push(`%${search}%`); idx++; }
-  const where = 'WHERE ' + conditions.join(' AND ');
+  const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
   const countRes = await db.query(`SELECT COUNT(*) FROM delivery_requests ${where}`, params);
   const total = parseInt(countRes.rows[0].count, 10);
   const offset = (page - 1) * limit;

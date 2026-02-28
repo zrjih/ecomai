@@ -29,8 +29,8 @@ export default function OrderDetail() {
       const o = await orders.get(id);
       setOrder(o);
       setStatus(o.status);
-      const p = await payments.list(id);
-      setOrderPayments(p.items);
+      const p = await payments.list({ order_id: id });
+      setOrderPayments(p.items || []);
     } catch { navigate('/admin/orders'); }
     finally { setLoading(false); }
   };

@@ -10,7 +10,13 @@ module.exports = {
   databaseUrl: process.env.DATABASE_URL || 'postgresql://ecomai:ecomai_secret@127.0.0.1:5432/ecomai',
 
   // Auth
-  jwtSecret: process.env.JWT_SECRET || 'dev-secret-change-me',
+  jwtSecret: (() => {
+    const secret = process.env.JWT_SECRET;
+    if (!secret && process.env.NODE_ENV === 'production') {
+      throw new Error('FATAL: JWT_SECRET must be set in production');
+    }
+    return secret || 'dev-secret-change-me';
+  })(),
   jwtAccessExpires: process.env.JWT_ACCESS_EXPIRES || '15m',
   jwtRefreshExpires: process.env.JWT_REFRESH_EXPIRES || '7d',
 

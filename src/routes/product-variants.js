@@ -2,6 +2,7 @@ const express = require('express');
 const { authRequired, requireRoles, resolveTenant } = require('../middleware/auth');
 const { requireTenantContext } = require('../middleware/tenant');
 const { asyncHandler } = require('../middleware/async-handler');
+const { validateBody } = require('../middleware/validate');
 const variantService = require('../services/product-variants');
 
 const router = express.Router();
@@ -13,7 +14,10 @@ router.get('/products/:productId/variants', asyncHandler(async (req, res) => {
   res.json({ items, count: items.length });
 }));
 
-router.post('/products/:productId/variants', asyncHandler(async (req, res) => {
+router.post('/products/:productId/variants', validateBody({
+  sku: { required: true, type: 'string', minLength: 1 },
+  price: { required: true, type: 'number', min: 0 },
+}), asyncHandler(async (req, res) => {
   const variant = await variantService.createVariant({
     shopId: req.tenantShopId, productId: req.params.productId, ...req.body,
   });

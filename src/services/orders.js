@@ -3,16 +3,18 @@ const orderRepo = require('../repositories/orders');
 const productRepo = require('../repositories/products');
 const variantRepo = require('../repositories/product-variants');
 const inventoryRepo = require('../repositories/inventory-movements');
+const couponService = require('../services/coupons');
 const { DomainError } = require('../errors/domain-error');
 
-function calculateTotals(items) {
+function calculateTotals(items, discountAmount = 0) {
   const subtotal = items.reduce((sum, item) => sum + Number(item.line_total), 0);
-  return { subtotal, tax_amount: 0, shipping_amount: 0, discount_amount: 0, total_amount: subtotal };
+  const discount = Math.min(discountAmount, subtotal);
+  return { subtotal, tax_amount: 0, shipping_amount: 0, discount_amount: discount, total_amount: Number((subtotal - discount).toFixed(2)) };
 }
 
 async function ensureOrderExists(shopId, orderId) {
   const order = await orderRepo.findById(orderId);
-  if (!order || order.shop_id !== shopId) {
+  if (!order || (shopId && order.shop_id !== shopId)) {
     throw new DomainError('ORDER_NOT_FOUND', 'Order not found', 404);
   }
   return order;
@@ -25,15 +27,56 @@ async function getOrder(shopId, orderId) {
 }
 
 async function updateOrderStatus(shopId, orderId, status) {
-  await ensureOrderExists(shopId, orderId);
-  const VALID = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
+  const order = await ensureOrderExists(shopId, orderId);
+  const VALID = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'];
   if (!VALID.includes(status)) {
     throw new DomainError('INVALID_STATUS', `status must be one of: ${VALID.join(', ')}`, 400);
   }
+
+  // Order state machine — enforce valid transitions
+  const TRANSITIONS = {
+    pending:    ['confirmed', 'cancelled'],
+    confirmed:  ['processing', 'cancelled'],
+    processing: ['shipped', 'cancelled'],
+    shipped:    ['delivered'],
+    delivered:  ['refunded'],
+    cancelled:  [],
+    refunded:   [],
+  };
+  const allowed = TRANSITIONS[order.status] || [];
+  if (!allowed.includes(status)) {
+    throw new DomainError('INVALID_TRANSITION', `Cannot transition from '${order.status}' to '${status}'. Allowed: ${allowed.join(', ') || 'none'}`, 400);
+  }
+
+  // If cancelling, restore inventory
+  if (status === 'cancelled') {
+    const itemsRes = await db.query('SELECT * FROM order_items WHERE order_id = $1', [orderId]);
+    return db.withTransaction(async (client) => {
+      for (const item of itemsRes.rows) {
+        if (item.variant_id) {
+          await variantRepo.incrementInventory(item.variant_id, item.quantity, client);
+          await inventoryRepo.createMovement({
+            shop_id: shopId, variant_id: item.variant_id, product_id: item.product_id,
+            type: 'return', quantity: item.quantity,
+            reason: `Order ${orderId} cancelled`, reference_id: orderId,
+          }, client);
+        } else if (item.product_id) {
+          await productRepo.incrementStock(item.product_id, shopId, item.quantity, client);
+          await inventoryRepo.createMovement({
+            shop_id: shopId, variant_id: null, product_id: item.product_id,
+            type: 'return', quantity: item.quantity,
+            reason: `Order ${orderId} cancelled`, reference_id: orderId,
+          }, client);
+        }
+      }
+      return orderRepo.updateOrder(orderId, shopId, { status }, client);
+    });
+  }
+
   return orderRepo.updateOrder(orderId, shopId, { status });
 }
 
-async function createOrder({ shopId, customer_email, customer_id, items, shipping_address, notes }) {
+async function createOrder({ shopId, customer_email, customer_id, items, shipping_address, notes, coupon_code }) {
   if (!customer_email || !Array.isArray(items) || items.length === 0) {
     throw new DomainError('VALIDATION_ERROR', 'customer_email and non-empty items are required', 400);
   }
@@ -69,7 +112,17 @@ async function createOrder({ shopId, customer_email, customer_id, items, shippin
     });
   }
 
-  const totals = calculateTotals(resolvedItems);
+  const tempTotals = calculateTotals(resolvedItems);
+
+  // Apply coupon if provided
+  let couponResult = null;
+  let discountAmount = 0;
+  if (coupon_code) {
+    couponResult = await couponService.validateCoupon(shopId, coupon_code, tempTotals.subtotal);
+    discountAmount = couponResult.discount;
+  }
+
+  const totals = calculateTotals(resolvedItems, discountAmount);
 
   // Use transaction for order + items + inventory
   return db.withTransaction(async (client) => {
@@ -94,7 +147,8 @@ async function createOrder({ shopId, customer_email, customer_id, items, shippin
 
       // Decrement inventory for variants
       if (ri.variant_id) {
-        await variantRepo.decrementInventory(ri.variant_id, ri.quantity, client);
+        const updated = await variantRepo.decrementInventory(ri.variant_id, ri.quantity, client);
+        if (!updated) throw new DomainError('INSUFFICIENT_STOCK', `Insufficient stock for variant: ${ri.item_name}`, 400);
         await inventoryRepo.createMovement({
           shop_id: shopId,
           variant_id: ri.variant_id,
@@ -106,7 +160,8 @@ async function createOrder({ shopId, customer_email, customer_id, items, shippin
         }, client);
       } else if (ri.product_id) {
         // Decrement stock for non-variant products
-        await productRepo.decrementStock(ri.product_id, shopId, ri.quantity, client);
+        const updated = await productRepo.decrementStock(ri.product_id, shopId, ri.quantity, client);
+        if (!updated) throw new DomainError('INSUFFICIENT_STOCK', `Insufficient stock for product: ${ri.item_name}`, 400);
         await inventoryRepo.createMovement({
           shop_id: shopId,
           variant_id: null,
@@ -119,7 +174,12 @@ async function createOrder({ shopId, customer_email, customer_id, items, shippin
       }
     }
 
-    return { ...order, items: savedItems };
+    // Increment coupon usage if coupon was applied
+    if (couponResult) {
+      await couponService.applyCoupon(couponResult.coupon.id, client);
+    }
+
+    return { ...order, items: savedItems, coupon: couponResult ? { code: coupon_code, discount: discountAmount } : null };
   });
 }
 

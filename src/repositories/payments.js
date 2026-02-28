@@ -17,7 +17,11 @@ async function findById(paymentId) {
 }
 
 async function findByIdAndShop(paymentId, shopId) {
-  const res = await db.query('SELECT * FROM payments WHERE id = $1 AND shop_id = $2', [paymentId, shopId]);
+  if (shopId) {
+    const res = await db.query('SELECT * FROM payments WHERE id = $1 AND shop_id = $2', [paymentId, shopId]);
+    return res.rows[0] || null;
+  }
+  const res = await db.query('SELECT * FROM payments WHERE id = $1', [paymentId]);
   return res.rows[0] || null;
 }
 
@@ -42,20 +46,28 @@ async function updatePayment(paymentId, patch, client) {
   if (sets.length === 0) return findById(paymentId);
   sets.push(`updated_at = now()`);
   params.push(paymentId);
+  // Build WHERE clause with optional shop_id scoping
+  let where = `id = $${idx}`;
+  if (patch._shopId) {
+    idx++;
+    params.push(patch._shopId);
+    where += ` AND shop_id = $${idx}`;
+  }
   const res = await q.query(
-    `UPDATE payments SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
+    `UPDATE payments SET ${sets.join(', ')} WHERE ${where} RETURNING *`,
     params
   );
   return res.rows[0] || null;
 }
 
 async function listByShop(shopId, { page = 1, limit = 50, status, search } = {}) {
-  const conditions = ['shop_id = $1'];
-  const params = [shopId];
-  let idx = 2;
+  const conditions = [];
+  const params = [];
+  let idx = 1;
+  if (shopId) { conditions.push(`shop_id = $${idx}`); params.push(shopId); idx++; }
   if (status) { conditions.push(`status = $${idx}`); params.push(status); idx++; }
   if (search) { conditions.push(`(gateway_tran_id ILIKE $${idx} OR method ILIKE $${idx} OR order_id::text ILIKE $${idx})`); params.push(`%${search}%`); idx++; }
-  const where = 'WHERE ' + conditions.join(' AND ');
+  const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
   const countRes = await db.query(`SELECT COUNT(*) FROM payments ${where}`, params);
   const total = parseInt(countRes.rows[0].count, 10);
   const offset = (page - 1) * limit;

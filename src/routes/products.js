@@ -2,6 +2,7 @@ const express = require('express');
 const { authRequired, requireRoles, resolveTenant } = require('../middleware/auth');
 const { requireTenantContext } = require('../middleware/tenant');
 const { asyncHandler } = require('../middleware/async-handler');
+const { validateBody } = require('../middleware/validate');
 const productService = require('../services/products');
 
 const router = express.Router();
@@ -24,7 +25,11 @@ router.get('/:productId', asyncHandler(async (req, res) => {
   res.json(product);
 }));
 
-router.post('/', asyncHandler(async (req, res) => {
+router.post('/', validateBody({
+  name: { required: true, type: 'string', minLength: 1 },
+  slug: { required: true, type: 'string', minLength: 1 },
+  base_price: { required: true, type: 'number', min: 0 },
+}), asyncHandler(async (req, res) => {
   const product = await productService.createProduct({ shopId: req.tenantShopId, ...req.body });
   res.status(201).json(product);
 }));

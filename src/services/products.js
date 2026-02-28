@@ -24,7 +24,8 @@ async function getProductBySlug(shopId, slug) {
   if (!product) {
     throw new DomainError('PRODUCT_NOT_FOUND', 'Product not found', 404);
   }
-  return product;
+  const images = await imageRepo.listByProduct(product.id, shopId);
+  return { ...product, images };
 }
 
 async function createProduct({ shopId, name, slug, base_price, description, category, category_id, image_url, stock_quantity }) {

@@ -1,4 +1,4 @@
-const { describe, it, before, after } = require('node:test');
+const { describe, it, beforeAll, afterAll } = require('bun:test');
 const assert = require('node:assert/strict');
 const { setup, teardown, shopId } = require('./helpers/setup');
 const productService = require('../src/services/products');
@@ -6,8 +6,8 @@ const variantService = require('../src/services/product-variants');
 const orderService = require('../src/services/orders');
 
 describe('order status service', () => {
-  before(setup);
-  after(teardown);
+  beforeAll(setup);
+  afterAll(teardown);
 
   let orderId;
 

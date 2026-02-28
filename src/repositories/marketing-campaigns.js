@@ -18,11 +18,15 @@ async function findById(campaignId) {
 }
 
 async function findByIdAndShop(campaignId, shopId) {
-  const res = await db.query('SELECT * FROM marketing_campaigns WHERE id = $1 AND shop_id = $2', [campaignId, shopId]);
+  if (shopId) {
+    const res = await db.query('SELECT * FROM marketing_campaigns WHERE id = $1 AND shop_id = $2', [campaignId, shopId]);
+    return res.rows[0] || null;
+  }
+  const res = await db.query('SELECT * FROM marketing_campaigns WHERE id = $1', [campaignId]);
   return res.rows[0] || null;
 }
 
-async function updateCampaign(campaignId, patch) {
+async function updateCampaign(campaignId, shopId, patch) {
   const allowed = ['name', 'type', 'status', 'subject', 'content', 'audience_filter', 'scheduled_at', 'sent_at', 'performance'];
   const sets = [];
   const params = [];
@@ -37,21 +41,28 @@ async function updateCampaign(campaignId, patch) {
   if (sets.length === 0) return findById(campaignId);
   sets.push(`updated_at = now()`);
   params.push(campaignId);
+  let where = `id = $${idx}`;
+  if (shopId) {
+    idx++;
+    params.push(shopId);
+    where += ` AND shop_id = $${idx}`;
+  }
   const res = await db.query(
-    `UPDATE marketing_campaigns SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
+    `UPDATE marketing_campaigns SET ${sets.join(', ')} WHERE ${where} RETURNING *`,
     params
   );
   return res.rows[0] || null;
 }
 
 async function listByShop(shopId, { page = 1, limit = 50, status, type, search } = {}) {
-  const conditions = ['shop_id = $1'];
-  const params = [shopId];
-  let idx = 2;
+  const conditions = [];
+  const params = [];
+  let idx = 1;
+  if (shopId) { conditions.push(`shop_id = $${idx}`); params.push(shopId); idx++; }
   if (status) { conditions.push(`status = $${idx}`); params.push(status); idx++; }
   if (type) { conditions.push(`type = $${idx}`); params.push(type); idx++; }
   if (search) { conditions.push(`(name ILIKE $${idx} OR subject ILIKE $${idx} OR type ILIKE $${idx})`); params.push(`%${search}%`); idx++; }
-  const where = 'WHERE ' + conditions.join(' AND ');
+  const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
   const countRes = await db.query(`SELECT COUNT(*) FROM marketing_campaigns ${where}`, params);
   const total = parseInt(countRes.rows[0].count, 10);
   const offset = (page - 1) * limit;

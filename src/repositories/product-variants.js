@@ -1,17 +1,31 @@
 const db = require('../db');
 
 async function listByProduct(shopId, productId) {
+  if (shopId) {
+    const res = await db.query(
+      'SELECT * FROM product_variants WHERE shop_id = $1 AND product_id = $2 ORDER BY created_at',
+      [shopId, productId]
+    );
+    return res.rows;
+  }
   const res = await db.query(
-    'SELECT * FROM product_variants WHERE shop_id = $1 AND product_id = $2 ORDER BY created_at',
-    [shopId, productId]
+    'SELECT * FROM product_variants WHERE product_id = $1 ORDER BY created_at',
+    [productId]
   );
   return res.rows;
 }
 
 async function findByIdAndShop(variantId, shopId) {
+  if (shopId) {
+    const res = await db.query(
+      'SELECT * FROM product_variants WHERE id = $1 AND shop_id = $2',
+      [variantId, shopId]
+    );
+    return res.rows[0] || null;
+  }
   const res = await db.query(
-    'SELECT * FROM product_variants WHERE id = $1 AND shop_id = $2',
-    [variantId, shopId]
+    'SELECT * FROM product_variants WHERE id = $1',
+    [variantId]
   );
   return res.rows[0] || null;
 }

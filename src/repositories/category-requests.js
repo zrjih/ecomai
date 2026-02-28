@@ -1,11 +1,12 @@
 const db = require('../db');
 
 async function listByShop(shopId, { status, page = 1, limit = 50 } = {}) {
-  const conditions = ['cr.shop_id = $1'];
-  const params = [shopId];
-  let idx = 2;
+  const conditions = [];
+  const params = [];
+  let idx = 1;
+  if (shopId) { conditions.push(`cr.shop_id = $${idx}`); params.push(shopId); idx++; }
   if (status) { conditions.push(`cr.status = $${idx}`); params.push(status); idx++; }
-  const where = 'WHERE ' + conditions.join(' AND ');
+  const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
   const countRes = await db.query(`SELECT COUNT(*) FROM category_requests cr ${where}`, params);
   const total = parseInt(countRes.rows[0].count, 10);
   const offset = (page - 1) * limit;
@@ -20,7 +21,11 @@ async function listByShop(shopId, { status, page = 1, limit = 50 } = {}) {
 }
 
 async function findById(id, shopId) {
-  const res = await db.query('SELECT * FROM category_requests WHERE id = $1 AND shop_id = $2', [id, shopId]);
+  if (shopId) {
+    const res = await db.query('SELECT * FROM category_requests WHERE id = $1 AND shop_id = $2', [id, shopId]);
+    return res.rows[0] || null;
+  }
+  const res = await db.query('SELECT * FROM category_requests WHERE id = $1', [id]);
   return res.rows[0] || null;
 }
 
@@ -42,10 +47,10 @@ async function updateStatus(id, shopId, { status, admin_notes }) {
 }
 
 async function countPending(shopId) {
-  const res = await db.query(
-    `SELECT COUNT(*) FROM category_requests WHERE shop_id = $1 AND status = 'pending'`,
-    [shopId]
-  );
+  const q = shopId
+    ? `SELECT COUNT(*) FROM category_requests WHERE shop_id = $1 AND status = 'pending'`
+    : `SELECT COUNT(*) FROM category_requests WHERE status = 'pending'`;
+  const res = await db.query(q, shopId ? [shopId] : []);
   return parseInt(res.rows[0].count, 10);
 }
 
