@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { websiteSettings, shops, products as productsApi } from '../api';
 import { useAuth } from '../contexts/AuthContext';
-import { templates, resolveTokens, fontPairings, colorPresets } from '../storefront/templates';
+import { templates, resolveTokens, fontPairings, colorPresets, getContrastRatio, getContrastLevel } from '../storefront/templates';
 import { PageHeader, Card, Button, FormField, Input, Textarea } from '../components/UI';
 
 const TEMPLATE_LIST = Object.values(templates);
@@ -151,6 +151,7 @@ export default function WebsiteSettings() {
   const [flatShippingRate, setFlatShippingRate] = useState('');
   const [freeShippingThreshold, setFreeShippingThreshold] = useState('');
   const [shippingCustomText, setShippingCustomText] = useState('');
+  const [storeLayout, setStoreLayout] = useState('default');
 
   /* ── Policies ── */
   const [storePolicies, setStorePolicies] = useState({ return_policy: '', privacy_policy: '', terms: '', about_us: '' });
@@ -279,6 +280,7 @@ export default function WebsiteSettings() {
         setFlatShippingRate(sc.flat_shipping_rate || '');
         setFreeShippingThreshold(sc.free_shipping_threshold || '');
         setShippingCustomText(sc.shipping_custom_text || '');
+        setStoreLayout(sc.store_layout || 'default');
 
         // Analytics
         const an = data.analytics || {};
@@ -375,6 +377,7 @@ export default function WebsiteSettings() {
           flat_shipping_rate: flatShippingRate ? Number(flatShippingRate) : undefined,
           free_shipping_threshold: freeShippingThreshold ? Number(freeShippingThreshold) : undefined,
           shipping_custom_text: shippingCustomText || undefined,
+          store_layout: storeLayout,
         },
         analytics: { ga4_id: ga4Id || undefined, fb_pixel_id: fbPixelId || undefined, gtm_id: gtmId || undefined },
         popup_config: {
@@ -407,6 +410,9 @@ export default function WebsiteSettings() {
   const updateToken = (key, value) => setTokenOverrides(prev => ({ ...prev, [key]: value }));
   const resetToken = (key) => setTokenOverrides(prev => { const n = { ...prev }; delete n[key]; return n; });
 
+  const currentDefaults = templates[selectedTemplate]?.defaults || templates.classic.defaults;
+  const resolved = resolveTokens(selectedTemplate, tokenOverrides);
+
   /* ── Live Preview via postMessage ── */
   useEffect(() => {
     if (!iframeRef.current?.contentWindow) return;
@@ -431,9 +437,6 @@ export default function WebsiteSettings() {
       </div>
     );
   }
-
-  const currentDefaults = templates[selectedTemplate]?.defaults || templates.classic.defaults;
-  const resolved = resolveTokens(selectedTemplate, tokenOverrides);
   const storeUrl = shop ? `/store/${shop.slug}` : null;
   const overrideCount = Object.keys(tokenOverrides).length;
 
@@ -753,6 +756,37 @@ export default function WebsiteSettings() {
                   </div>
                 </div>
               </Card>
+              {/* Contrast Checker */}
+              <Card>
+                <div className="p-5">
+                  <h3 className="font-semibold text-gray-900 mb-1">Accessibility Check</h3>
+                  <p className="text-xs text-gray-500 mb-3">WCAG 2.1 contrast ratios for your current color scheme.</p>
+                  <div className="space-y-2">
+                    {[
+                      { label: 'Text on Background', fg: resolved.text, bg: resolved.bg },
+                      { label: 'Muted on Background', fg: resolved.textMuted, bg: resolved.bg },
+                      { label: 'Primary on Background', fg: resolved.primary, bg: resolved.bg },
+                      { label: 'Text on Surface', fg: resolved.text, bg: resolved.surface },
+                      { label: 'Header Text on Header', fg: resolved.headerText, bg: resolved.headerBg },
+                      { label: 'Footer Text on Footer', fg: resolved.footerText, bg: resolved.footerBg },
+                    ].map((check, i) => {
+                      const ratio = getContrastRatio(check.fg, check.bg);
+                      const level = getContrastLevel(ratio);
+                      return (
+                        <div key={i} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
+                          <div className="flex gap-1">
+                            <div className="w-5 h-5 rounded border border-gray-200" style={{ backgroundColor: check.fg }} title={check.fg} />
+                            <div className="w-5 h-5 rounded border border-gray-200" style={{ backgroundColor: check.bg }} title={check.bg} />
+                          </div>
+                          <span className="text-xs text-gray-600 flex-1">{check.label}</span>
+                          <span className="text-xs font-mono text-gray-400">{ratio.toFixed(1)}:1</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: level.color + '15', color: level.color }}>{level.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </Card>
             </>
           )}
 
@@ -977,6 +1011,29 @@ export default function WebsiteSettings() {
           {/* ════════════ STORE CONFIG ════════════ */}
           {activeTab === 'store' && (
             <>
+              <Card>
+                <div className="p-5">
+                  <h3 className="font-semibold text-gray-900 mb-1">Store Layout</h3>
+                  <p className="text-xs text-gray-500 mb-4">Choose the overall page layout for your storefront.</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { id: 'default', label: 'Standard', desc: 'Full-width centered', icon: '📐' },
+                      { id: 'wide', label: 'Wide', desc: 'Extra-wide content', icon: '🖥️' },
+                      { id: 'compact', label: 'Compact', desc: 'Narrow & focused', icon: '📱' },
+                      { id: 'sidebar', label: 'Sidebar', desc: 'Categories sidebar', icon: '📋' },
+                    ].map(l => (
+                      <button key={l.id} onClick={() => setStoreLayout(l.id)}
+                        className={`p-3 border-2 rounded-xl text-center transition-all ${
+                          storeLayout === l.id ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-200' : 'border-gray-200 hover:border-gray-300'
+                        }`}>
+                        <div className="text-2xl mb-1">{l.icon}</div>
+                        <div className="text-sm font-semibold text-gray-900">{l.label}</div>
+                        <div className="text-[10px] text-gray-500">{l.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </Card>
               <Card>
                 <div className="p-5">
                   <h3 className="font-semibold text-gray-900 mb-1">Currency</h3>
@@ -1205,6 +1262,44 @@ export default function WebsiteSettings() {
             <>
               <Card>
                 <div className="p-5">
+                  <h3 className="font-semibold text-gray-900 mb-1">Export / Import Settings</h3>
+                  <p className="text-xs text-gray-500 mb-3">Backup your settings or transfer them between shops.</p>
+                  <div className="flex gap-2 mb-3">
+                    <Button variant="secondary" size="sm" onClick={() => {
+                      const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url; a.download = `website-settings-${new Date().toISOString().slice(0,10)}.json`;
+                      a.click(); URL.revokeObjectURL(url);
+                    }}>
+                      Export JSON
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={() => {
+                      const input = document.createElement('input');
+                      input.type = 'file'; input.accept = '.json';
+                      input.onchange = async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          const text = await file.text();
+                          const data = JSON.parse(text);
+                          if (!data.template) { setError('Invalid settings file'); return; }
+                          const updated = await websiteSettings.update(data);
+                          setSettings(updated);
+                          setSuccess('Settings imported! Reload to see changes.');
+                          setTimeout(() => window.location.reload(), 1500);
+                        } catch { setError('Failed to import settings. Please check the file format.'); }
+                      };
+                      input.click();
+                    }}>
+                      Import JSON
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-gray-400">Export saves all your current settings. Import will overwrite your current configuration.</p>
+                </div>
+              </Card>
+              <Card>
+                <div className="p-5">
                   <h3 className="font-semibold text-gray-900 mb-1">Custom CSS</h3>
                   <p className="text-xs text-gray-500 mb-3">Injected after template styles.</p>
                   <Textarea value={customCss} onChange={e => setCustomCss(e.target.value)} className="font-mono text-xs !h-32" placeholder=".storefront .product-card { border: 2px solid gold; }" />
@@ -1223,7 +1318,8 @@ export default function WebsiteSettings() {
                 <div className="p-5">
                   <h3 className="font-semibold text-gray-900 mb-3">System Info</h3>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <p className="text-gray-500">Template</p><p className="font-medium capitalize">{selectedTemplate.replace('_', ' ')}</p>
+                    <p className="text-gray-500">Template</p><p className="font-medium capitalize">{selectedTemplate.replace(/_/g, ' ')}</p>
+                    <p className="text-gray-500">Templates Available</p><p className="font-medium">{Object.keys(templates).length}</p>
                     <p className="text-gray-500">Color Overrides</p><p className="font-medium">{overrideCount}</p>
                     <p className="text-gray-500">Last Updated</p><p>{settings?.updated_at ? new Date(settings.updated_at).toLocaleString() : '—'}</p>
                   </div>

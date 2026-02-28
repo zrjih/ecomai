@@ -48,7 +48,16 @@ export default function StoreProductDetail() {
       const primary = data.images?.find(i => i.is_primary) || data.images?.[0] || null;
       setSelectedImage(primary);
       storeApi.getProducts(shopSlug).then((res) => {
-        setRelated(res.items.filter(p => p.id !== data.id && p.category_id === data.category_id).slice(0, 4));
+        const others = (res.items || []).filter(p => p.id !== data.id);
+        // Smart related: same category first, then similar price range, then rest
+        const sameCategory = others.filter(p => p.category_id === data.category_id);
+        const basePrice = Number(data.base_price) || 0;
+        const priceRange = others.filter(p => {
+          const pp = Number(p.base_price) || 0;
+          return p.category_id !== data.category_id && pp >= basePrice * 0.5 && pp <= basePrice * 1.5;
+        });
+        const rest = others.filter(p => p.category_id !== data.category_id && !priceRange.includes(p));
+        setRelated([...sameCategory, ...priceRange, ...rest].slice(0, 4));
       }).catch(() => {});
     }).catch(() => {}).finally(() => setLoading(false));
     // Load reviews
@@ -127,6 +136,22 @@ export default function StoreProductDetail() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      {/* JSON-LD Product Structured Data */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'Product',
+        name: product.name,
+        ...(product.description ? { description: product.description.slice(0, 200) } : {}),
+        ...(selectedImage?.url || product.image_url ? { image: selectedImage?.url || product.image_url } : {}),
+        offers: {
+          '@type': 'Offer',
+          price: price,
+          priceCurrency: storeConfig?.currency_code || 'BDT',
+          availability: isOutOfStock ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
+        },
+        ...(reviewSummary.count > 0 ? { aggregateRating: { '@type': 'AggregateRating', ratingValue: reviewSummary.average, reviewCount: reviewSummary.count } } : {}),
+      }) }} />
+
       {/* Breadcrumb */}
       <nav className="text-sm mb-8 flex items-center gap-2" style={{ color: t.textMuted }}>
         <Link to={`/store/${shopSlug}`} className="hover:opacity-70 transition">Home</Link>

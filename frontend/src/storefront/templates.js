@@ -278,6 +278,28 @@ export function getGoogleFontsUrl(tokens) {
 }
 
 /* ── Color Scheme Presets ── */
+
+/* ── Contrast Checker (WCAG 2.1) ── */
+export function getContrastRatio(hex1, hex2) {
+  const toLum = (hex) => {
+    const rgb = hex.replace('#', '').match(/.{2}/g).map(c => {
+      const v = parseInt(c, 16) / 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+  };
+  const l1 = toLum(hex1), l2 = toLum(hex2);
+  const lighter = Math.max(l1, l2), darker = Math.min(l1, l2);
+  return ((lighter + 0.05) / (darker + 0.05));
+}
+
+export function getContrastLevel(ratio) {
+  if (ratio >= 7) return { label: 'AAA', color: '#16a34a' };
+  if (ratio >= 4.5) return { label: 'AA', color: '#2563eb' };
+  if (ratio >= 3) return { label: 'AA Large', color: '#d97706' };
+  return { label: 'Fail', color: '#dc2626' };
+}
+
 export const colorPresets = {
   classic: [
     { name: 'Ocean Blue', primary: '#2563eb', secondary: '#1e40af', bg: '#ffffff', surface: '#f8fafc', text: '#1e293b', accent: '#3b82f6' },
@@ -310,5 +332,21 @@ export const colorPresets = {
     { name: 'True Black', primary: '#171717', secondary: '#404040', bg: '#ffffff', surface: '#fafafa', text: '#171717', accent: '#737373' },
     { name: 'Warm Gray', primary: '#44403c', secondary: '#57534e', bg: '#fafaf9', surface: '#f5f5f4', text: '#1c1917', accent: '#a8a29e' },
     { name: 'Cool Blue', primary: '#334155', secondary: '#475569', bg: '#ffffff', surface: '#f8fafc', text: '#0f172a', accent: '#94a3b8' },
+  ],
+  artisan_craft: [
+    { name: 'Saddle Brown', primary: '#8B4513', secondary: '#A0522D', bg: '#FFF8F0', surface: '#FDF5EC', text: '#3E2723', accent: '#D2691E' },
+    { name: 'Olive Grove', primary: '#6B8E23', secondary: '#556B2F', bg: '#FAFFF0', surface: '#F5F9E8', text: '#2E3D1A', accent: '#9ACD32' },
+    { name: 'Terracotta', primary: '#CC5500', secondary: '#B84700', bg: '#FFF5ED', surface: '#FEF0E3', text: '#4A2000', accent: '#E87800' },
+  ],
+  tech_neon: [
+    { name: 'Cyan Glow', primary: '#00E5FF', secondary: '#7C4DFF', bg: '#0D1117', surface: '#161B22', text: '#E6EDF3', accent: '#FF4081' },
+    { name: 'Green Matrix', primary: '#00FF41', secondary: '#39FF14', bg: '#0A0F0D', surface: '#111A14', text: '#E0FFE0', accent: '#00BFFF' },
+    { name: 'Magenta Pulse', primary: '#FF00FF', secondary: '#E040FB', bg: '#0D0012', surface: '#1A0025', text: '#F0E0FF', accent: '#00E5FF' },
+  ],
+  soft_pastel: [
+    { name: 'Lavender Dream', primary: '#C084FC', secondary: '#F9A8D4', bg: '#FFFBFE', surface: '#FDF4FF', text: '#3B0764', accent: '#67E8F9' },
+    { name: 'Peach Blossom', primary: '#FB923C', secondary: '#F9A8D4', bg: '#FFFAF5', surface: '#FFF5EE', text: '#7C2D12', accent: '#A78BFA' },
+    { name: 'Mint Fresh', primary: '#34D399', secondary: '#67E8F9', bg: '#F0FFF8', surface: '#ECFDF5', text: '#064E3B', accent: '#F9A8D4' },
+    { name: 'Baby Blue', primary: '#60A5FA', secondary: '#A78BFA', bg: '#F5F9FF', surface: '#EFF6FF', text: '#1E3A5F', accent: '#F9A8D4' },
   ],
 };

@@ -57,9 +57,9 @@ app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true })); // SSLCommerz callbacks use form POST
 
 // Rate limiting
-const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false });
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
-const customerAuthLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false,
+const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30000, standardHeaders: true, legacyHeaders: false });
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 2000, standardHeaders: true, legacyHeaders: false });
+const customerAuthLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 1000, standardHeaders: true, legacyHeaders: false,
   message: { code: 'RATE_LIMITED', message: 'Too many login attempts, please try again later' },
 });
 

@@ -167,6 +167,60 @@ export default function StorefrontLayout() {
     return () => scripts.forEach(s => s.remove());
   }, [analyticsConfig]);
 
+  const resolved = resolveTokens(theme, tokens);
+  const cssVars = tokensToCssVars(resolved);
+  const fontsUrl = getGoogleFontsUrl(resolved);
+  const storeLayout = storeConfig?.store_layout || 'default';
+  const layoutMaxW = storeLayout === 'wide' ? 'max-w-[1440px]' : storeLayout === 'compact' ? 'max-w-4xl' : 'max-w-7xl';
+
+  /* PWA Manifest — dynamic per-store */
+  useEffect(() => {
+    if (!shop?.name) return;
+    const manifest = {
+      name: shop.name,
+      short_name: shop.name.substring(0, 12),
+      start_url: `/store/${shopSlug}`,
+      display: 'standalone',
+      background_color: resolved?.bg || '#ffffff',
+      theme_color: resolved?.primary || '#2563eb',
+      icons: [
+        ...(seoDefaults.favicon_url ? [
+          { src: seoDefaults.favicon_url, sizes: '192x192', type: 'image/png' },
+          { src: seoDefaults.favicon_url, sizes: '512x512', type: 'image/png' },
+        ] : []),
+      ],
+    };
+    const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    let link = document.querySelector('link[rel="manifest"][data-store-pwa]');
+    if (!link) { link = document.createElement('link'); link.rel = 'manifest'; link.setAttribute('data-store-pwa', 'true'); document.head.appendChild(link); }
+    link.href = url;
+    let meta = document.querySelector('meta[name="theme-color"][data-store-pwa]');
+    if (!meta) { meta = document.createElement('meta'); meta.name = 'theme-color'; meta.setAttribute('data-store-pwa', 'true'); document.head.appendChild(meta); }
+    meta.content = resolved?.primary || '#2563eb';
+    return () => { URL.revokeObjectURL(url); };
+  }, [shop, shopSlug, seoDefaults, resolved]);
+
+  /* ── Live Preview: listen for postMessage from WebsiteSettings ── */
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.data?.type === 'ecomai_preview' && e.data.tokens) {
+        const preview = e.data.tokens;
+        const root = document.querySelector('.storefront');
+        if (!root) return;
+        Object.entries(preview).forEach(([key, value]) => {
+          const varName = `--store-${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
+          root.style.setProperty(varName, value);
+        });
+        if (preview.fontFamily) root.style.setProperty('--font-family', preview.fontFamily);
+        if (preview.headingFont) root.style.setProperty('--heading-font', preview.headingFont);
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  /* ── Early returns (after all hooks) ── */
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -200,29 +254,6 @@ export default function StorefrontLayout() {
     );
   }
 
-  const resolved = resolveTokens(theme, tokens);
-  const cssVars = tokensToCssVars(resolved);
-  const fontsUrl = getGoogleFontsUrl(resolved);
-
-  /* ── Live Preview: listen for postMessage from WebsiteSettings ── */
-  useEffect(() => {
-    const handler = (e) => {
-      if (e.data?.type === 'ecomai_preview' && e.data.tokens) {
-        const preview = e.data.tokens;
-        const root = document.querySelector('.storefront');
-        if (!root) return;
-        Object.entries(preview).forEach(([key, value]) => {
-          const varName = `--store-${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
-          root.style.setProperty(varName, value);
-        });
-        if (preview.fontFamily) root.style.setProperty('--font-family', preview.fontFamily);
-        if (preview.headingFont) root.style.setProperty('--heading-font', preview.headingFont);
-      }
-    };
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
-  }, []);
-
   const navLinks = (nav.nav && nav.nav.length > 0) ? nav.nav.map(l => ({ ...l, to: l.url || l.to })) : [
     { label: 'Home', to: `/store/${shopSlug}` },
     { label: 'Products', to: `/store/${shopSlug}/products` },
@@ -239,6 +270,22 @@ export default function StorefrontLayout() {
         @keyframes slideIn { from { opacity:0; transform: translateY(20px) scale(0.95); } to { opacity:1; transform: translateY(0) scale(1); } }
         ${customCss}
       `}</style>
+
+      {/* JSON-LD Structured Data */}
+      {shop && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'Store',
+          name: shop.name,
+          url: `${window.location.origin}/store/${shopSlug}`,
+          ...(nav.logo_url ? { logo: nav.logo_url } : {}),
+          ...(seoDefaults.description ? { description: seoDefaults.description } : {}),
+          ...(businessInfo.email ? { email: businessInfo.email } : {}),
+          ...(businessInfo.phone ? { telephone: businessInfo.phone } : {}),
+          ...(businessInfo.address ? { address: { '@type': 'PostalAddress', streetAddress: businessInfo.address } } : {}),
+          ...(socialLinks ? { sameAs: Object.values(socialLinks).filter(Boolean) } : {}),
+        }) }} />
+      )}
 
       {/* Announcement Bar */}
       {announcement?.enabled && announcement?.text && (() => {
@@ -259,7 +306,7 @@ export default function StorefrontLayout() {
 
       {/* Header */}
       <header className="sticky top-0 z-40 border-b" style={{ backgroundColor: resolved.headerBg, color: resolved.headerText, borderColor: resolved.border }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className={`${layoutMaxW} mx-auto px-4 sm:px-6 lg:px-8`}>
           <div className="flex items-center justify-between h-16">
             {/* Logo / shop name */}
             <Link to={`/store/${shopSlug}`} className={`flex items-center gap-2.5 hover:opacity-80 transition ${nav.layout === 'center' ? '' : ''}`}>
@@ -313,12 +360,32 @@ export default function StorefrontLayout() {
 
       {/* Main content */}
       <main className="flex-1 pb-20 md:pb-0">
-        <Outlet />
+        {storeLayout === 'sidebar' ? (
+          <div className={`${layoutMaxW} mx-auto px-4 sm:px-6 lg:px-8 py-6`}>
+            <div className="flex gap-6">
+              <aside className="hidden md:block w-56 shrink-0">
+                <div className="sticky top-20 space-y-4">
+                  <h4 className="text-sm font-semibold uppercase tracking-wider opacity-60" style={{ color: resolved.textMuted }}>Browse</h4>
+                  <nav className="space-y-1">
+                    {navLinks.map((link, i) => (
+                      <Link key={link.to || i} to={link.to || link.url || '#'} className="block px-3 py-2 text-sm rounded-lg transition hover:opacity-70" style={{ color: resolved.text }}>
+                        {link.label}
+                      </Link>
+                    ))}
+                  </nav>
+                </div>
+              </aside>
+              <div className="flex-1 min-w-0"><Outlet /></div>
+            </div>
+          </div>
+        ) : (
+          <Outlet />
+        )}
       </main>
 
       {/* Footer — hidden on mobile (bottom nav replaces it) */}
       <footer className="mt-auto hidden md:block" style={{ backgroundColor: resolved.footerBg, color: resolved.footerText }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className={`${layoutMaxW} mx-auto px-4 sm:px-6 lg:px-8 py-12`}>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
               {nav.logo_url && <img src={nav.logo_url} alt="" className="h-8 object-contain mb-3 opacity-80" />}
