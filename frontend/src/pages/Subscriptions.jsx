@@ -603,13 +603,7 @@ export default function Subscriptions() {
           <FormField label="Tagline" className="mt-4">
             <Input value={planForm.tagline} onChange={(e) => setPlanForm({ ...planForm, tagline: e.target.value })} placeholder="e.g. For growing businesses" />
           </FormField>
-          <FoFormField label="Billing Cycle" className="mt-4">
-              <Select value={shopBillingCycle} onChange={(e) => setShopBillingCycle(e.target.value)}>
-                <option value="monthly">Monthly</option>
-                <option value="yearly">Yearly</option>
-              </Select>
-            </FormField>
-            <rmField label="Description" className="mt-4">
+          <FormField label="Description" className="mt-4">
             <Textarea rows={2} value={planForm.description} onChange={(e) => setPlanForm({ ...planForm, description: e.target.value })} placeholder="Plan description" />
           </FormField>
           <FormField label="Features (one per line)" className="mt-4">
@@ -649,6 +643,12 @@ export default function Subscriptions() {
                   <option key={p.id} value={p.slug}>{p.name} — ${Number(p.price_monthly).toFixed(2)}/mo</option>
                 ))}
                 <option value="free">Free</option>
+              </Select>
+            </FormField>
+            <FormField label="Billing Cycle" className="mt-4">
+              <Select value={shopBillingCycle} onChange={(e) => setShopBillingCycle(e.target.value)}>
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
               </Select>
             </FormField>
             <div className="flex gap-2 justify-end mt-6 pt-4 border-t border-gray-100">
