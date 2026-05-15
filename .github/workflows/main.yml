@@ -1,0 +1,48 @@
+name: Windows RDP
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Download Ngrok
+        run: |
+          InvokeWebRequest -Uri "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip" -OutFile "ngrok.zip"
+          Expand-Archive ngrok.zip
+
+- name: Auth Ngrok
+        run: .\ngrok\ngrok.exe authtoken cr_2hq6S3OFtWLImVyr15ERQC8BU95
+
+      - name: Enable RDP
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -value 1
+
+      - name: Set User Password
+        run: |
+          $password = "RDPaccess123!"
+          $user = "runneradmin"
+          net user $user $password /add /y
+          net localgroup administrators $user /add
+          net user $user $password
+
+      - name: Start Ngrok Tunnel
+        run: Start-Process -FilePath ".\ngrok\ngrok.exe" -ArgumentList "tcp 3389" -WindowStyle Hidden
+
+      - name: Wait & Get Ngrok URL
+        run: |
+          Start-Sleep -Seconds 10
+          $resp = Invoke-RestMethod -Uri "http://127.0.0.1:4040/api/tunnels"
+          $publicUrl = $resp.tunnels[0].public_url
+          Write-Host "==========================================="
+          Write-Host "RDP Connection Info:"
+          Write-Host "Address : $publicUrl"
+          Write-Host "User    : runneradmin"
+          Write-Host "Password: (your RDP_PASSWORD secret)"
+          Write-Host "==========================================="
+          Start-Sleep -Seconds 21600
